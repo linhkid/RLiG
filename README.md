@@ -1,6 +1,94 @@
-# RLiG (Reduced Incomplete Local Graphs)
+# RLiG: Reinforcement Learning for Bayesian Network Structure in Tabular GANs
 
-This repository contains the implementation of RLiG, a novel approach for structure learning in Bayesian networks using reinforcement learning. RLiG combines reinforcement learning with generative modeling techniques to learn network structures effectively.
+This repository contains the implementation of RLiG (Reinforcement Learning Inspired Layered Tabular Data Generation), an innovative generative model for creating synthetic tabular data. RLiG extends the GANBLR framework by incorporating reinforcement learning to dynamically learn the structure of the Bayesian network generator during the GAN training process.
+
+## Overview
+
+Traditional deep learning-based GANs face challenges when applied to tabular data due to difficulties in modeling feature interactions implicitly. GANBLR introduced a novel approach using Bayesian Networks (BNs) for both generator and discriminator components, offering more interpretability and explicit feature interaction modeling. 
+
+However, GANBLR uses a fixed Bayesian network structure that is learned prior to GAN training, limiting its data generation quality. RLiG addresses this limitation through several key innovations:
+
+### Key Technical Features
+
+- **Dynamic Structure Learning**: Uses reinforcement learning to learn the Bayesian network structure during the GAN training process
+- **Layered Approach**: Employs a layered framework that trains multiple generators to handle the variable-sized parameter space
+- **Hybrid Policy**: Combines greedy Hill Climbing search with reinforcement learning to efficiently explore the structure space
+- **Generative and Non-Generative States**: Alternates between computing empirical probabilities (non-generative states) and training GANBLR models to sample synthetic data (generative states)
+- **Advanced Reward Function**: Incorporates both log-likelihood metrics and discriminator loss to guide structure learning
+
+### Advantages
+
+- Explicitly models complex feature interactions through learned Bayesian network structures
+- Offers interpretability by using probabilistic models rather than black-box neural networks
+- Adapts network structures to better represent the underlying data distribution
+- Achieves higher quality synthetic data generation through integration of structure learning with generative training
+- Demonstrates potential for causal structure discovery
+
+RLiG has been extensively evaluated for both machine learning utility (using TSTR - Train on Synthetic, Test on Real) and statistical similarity metrics (Jensen-Shannon Divergence, Wasserstein Distance), showing competitive or superior performance compared to state-of-the-art tabular data generation methods including CTGAN, TableGAN, MedGAN, and GANBLR.
+
+## Technical Architecture
+
+RLiG implements a sophisticated reinforcement learning framework for Bayesian network structure learning:
+
+```
++--------------------------------------------+
+|                  RLiG                      |
++--------------------------------------------+
+|                                            |
+|  +----------+                              |
+|  |          |                              |
+|  |  Layer 1 | Tile 1.1  Tile 1.2  Tile 1.3 |
+|  |          |    |         |        |      |
+|  +----------+    V         V        V      |
+|                States    States    States   |
+|                                            |
+|  +----------+                              |
+|  |          |                              |
+|  |  Layer 2 | Tile 2.1  Tile 2.2  Tile 2.3 |
+|  |          |    |         |        |      |
+|  +----------+    V         V        V      |
+|                States    States    States   |
+|                                            |
+|          ...                               |
+|                                            |
+|  +----------+                              |
+|  |          |                              |
+|  |  Layer N | Final Bayesian Network       |
+|  |          | Structure for GANBLR         |
+|  +----------+                              |
+|                                            |
++--------------------------------------------+
+```
+
+### States in Each Tile
+
+Each tile contains a sequence of states, which can be either:
+
+1. **Non-Generative States**: Compute empirical probabilities based on the current structure and real data
+   - Reward: Log-likelihood of original data given structure, penalized for complexity
+
+2. **Generative States**: Train a GANBLR model with the current structure to sample synthetic data
+   - Reward: Incorporates discriminator loss from GANBLR training and log-likelihood/complexity term
+
+### RL Algorithm Implementation
+
+The core reinforcement learning algorithm uses:
+
+- **State Space**: Current Bayesian network structure (nodes and edges)
+- **Action Space**: Adding/removing/flipping edges between nodes
+- **Hybrid Policy**: 
+  - Hill Climbing (HC) for local structure optimization
+  - Q-learning for exploring promising structure directions
+  - β-decay strategy to balance between greedy and RL-based actions
+- **Reward Function**: Combination of BIC score, discriminator loss, and complexity penalty
+- **Learning Process**: Experience replay with a stack buffer to improve sample efficiency
+
+### GANBLR Integration
+
+The final learned structure is used to initialize a GANBLR model where:
+- Generator: BNe (Bayesian Network with Equality constraints)
+- Discriminator: BNd (Discriminatively trained Bayesian Network)
+- Training: Adversarial process with the discriminator guiding generator updates
 
 ## Getting Started
 
