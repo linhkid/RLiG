@@ -115,28 +115,84 @@ class RLiG:
         self : object
             Fitted model.
         '''
-
-        if verbose is None or not isinstance(verbose, int):
-            verbose = 1
-        # self.variables = list(x.columns.values)
-        self.data = pd.concat([x, y], axis=1)
-        self.x = x
-        self.y = y
-        print(self.x)
-        print(self.y)
-        # self.variables = list(self.data.columns.values)
-        # self.label_node = list(self.data.columns.values)[-1]
-        self.variables = list(self.x.columns.values)
-        self.label_node = self.y.name
-        print(self.variables)
-        print(self.label_node)
-        x_int = self._ordinal_encoder.fit_transform(x)
-        y_int = self._label_encoder.fit_transform(y).astype(int)
-        # Dataframe -> Numpy.ndarry
-        d = DataUtils(x_int, y_int)
-        self._d = d  # DataUtils
-        self.k = k  # k for kdb
-        self.batch_size = batch_size
+        try:
+            if verbose is None or not isinstance(verbose, int):
+                verbose = 1
+            
+            # Data validation and preprocessing
+            if verbose:
+                print("Starting RLiG fit with parameters:")
+                print(f"  - episodes: {episodes}")
+                print(f"  - epochs: {epochs}")
+                print(f"  - k: {k}")
+                print(f"  - gan: {gan}")
+                print(f"  - warmup_epochs: {warmup_epochs}")
+                print(f"  - n: {n}")
+                print(f"Dataset shape - X: {x.shape}, y: {y.shape if hasattr(y, 'shape') else 'Series'}")
+            
+            # Check for NaN values
+            if x.isna().any().any():
+                print("WARNING: X contains NaN values which may cause errors. Consider preprocessing your data.")
+            
+            # Convert y to Series if it's a DataFrame
+            if isinstance(y, pd.DataFrame) and y.shape[1] == 1:
+                y = y.iloc[:, 0]
+                if verbose:
+                    print("Converted y from DataFrame to Series")
+            
+            # Create combined dataset
+            self.data = pd.concat([x, y], axis=1)
+            self.x = x
+            self.y = y
+            
+            if verbose:
+                print("Input data:")
+                print("-" * 30)
+                print(f"X head:\n{self.x.head()}")
+                print(f"y head:\n{self.y.head()}")
+                print("-" * 30)
+            
+            # Set variable names
+            self.variables = list(self.x.columns.values)
+            self.label_node = self.y.name
+            if self.label_node is None and isinstance(y, pd.Series):
+                # If y doesn't have a name, assign a default
+                self.label_node = "target"
+                self.y.name = self.label_node
+                if verbose:
+                    print(f"WARNING: y had no name, assigned default name: '{self.label_node}'")
+            
+            if verbose:
+                print(f"Variables: {self.variables}")
+                print(f"Label node: {self.label_node}")
+            
+            # Transform data
+            try:
+                x_int = self._ordinal_encoder.fit_transform(x)
+                y_int = self._label_encoder.fit_transform(y).astype(int)
+                if verbose:
+                    print(f"Encoded X shape: {x_int.shape}, Encoded y shape: {y_int.shape}")
+                    print(f"Unique values in y: {np.unique(y_int)}")
+            except Exception as e:
+                print(f"ERROR during data encoding: {e}")
+                raise
+                
+            # Create DataUtils
+            d = DataUtils(x_int, y_int)
+            self._d = d  # DataUtils
+            self.k = k  # k for kdb
+            self.batch_size = batch_size
+            
+            if verbose:
+                print("DataUtils created successfully")
+                print(f"Feature unique counts: {d.feature_uniques}")
+                print(f"Number of classes: {d.num_classes}")
+        
+        except Exception as e:
+            print(f"ERROR in data preprocessing: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
 
         score_buffer = StackBuffer()
 
@@ -416,15 +472,41 @@ class RLiG:
         edge_names = [(str(i), str(j)) for i, j in d._kdbe.edges_]
         y_name = node_names[-1]
 
-        # create TabularCPD objects
+        # create TabularCPD objects with validation
         evidences = d._kdbe.dependencies_
-        feature_cpds = [
-            TabularCPD(str(name), feature_cards[name], table,
-                       evidence=[y_name, *[str(e) for e in evidences]],
-                       evidence_card=[d.num_classes, *feature_cards[evidences].tolist()])
-            for (name, evidences), table in zip(evidences.items(), full_cpd_probs)
-        ]
+        feature_cpds = []
+        
+        # Process each CPD with validation
+        for (name, deps), table in zip(evidences.items(), full_cpd_probs):
+            # Ensure probabilities sum to 1 for each column
+            col_sums = np.sum(table, axis=0)
+            if not np.allclose(col_sums, 1.0):
+                print(f"Warning: CPD for node {name} does not sum to 1 (sums: {col_sums}). Normalizing.")
+                # Normalize each column to sum to 1
+                for i in range(table.shape[1]):
+                    if col_sums[i] > 0:  # Avoid division by zero
+                        table[:, i] = table[:, i] / col_sums[i]
+                    else:
+                        # If sum is 0, use uniform distribution
+                        table[:, i] = 1.0 / table.shape[0]
+            
+            # Create TabularCPD with normalized table
+            cpd = TabularCPD(
+                str(name), 
+                feature_cards[name], 
+                table,
+                evidence=[y_name, *[str(e) for e in deps]],
+                evidence_card=[d.num_classes, *feature_cards[deps].tolist()]
+            )
+            feature_cpds.append(cpd)
+        
+        # Normalize y probabilities to ensure they sum to 1
         y_probs = (d.class_counts / d.data_size).reshape(-1, 1)
+        y_sum = np.sum(y_probs)
+        if not np.isclose(y_sum, 1.0):
+            print(f"Warning: Class probabilities do not sum to 1 (sum: {y_sum}). Normalizing.")
+            y_probs = y_probs / y_sum
+        
         y_cpd = TabularCPD(y_name, d.num_classes, y_probs)
 
         # create kDB model, then sample the data

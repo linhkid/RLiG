@@ -149,19 +149,32 @@ def _get_dependencies_without_y(variables, y_name, kdb_edges):
 def _add_uniform(array, noise=1e-5):
     ''' 
     if no count on particular condition for any feature, give a uniform prob rather than leave 0
+    Ensures probabilities sum to 1 for each column
     '''
-    sum_by_col = np.sum(array,axis=0)
+    sum_by_col = np.sum(array, axis=0)
     zero_idxs = (array == 0).astype(int)
-    # zero_count_by_col = np.sum(zero_idxs,axis=0)
     nunique = array.shape[0]
     result = np.zeros_like(array, dtype='float')
+    
+    # Process each column
     for i in range(array.shape[1]):
+        # If column has all zeros, use uniform distribution
         if sum_by_col[i] == 0:
-            result[:,i] = array[:,i] + 1./nunique
-        elif noise != 0:
-            result[:,i] = array[:,i] + noise * zero_idxs[:,i]
+            result[:,i] = 1.0/nunique  # Uniform distribution
         else:
-            result[:,i] = array[:,i]
+            # Add small noise to zero values if requested
+            if noise != 0:
+                temp_col = array[:,i] + noise * zero_idxs[:,i]
+            else:
+                temp_col = array[:,i].copy()
+            
+            # Normalize to ensure column sums to 1
+            col_sum = np.sum(temp_col)
+            if col_sum > 0:  # Avoid division by zero
+                result[:,i] = temp_col / col_sum
+            else:
+                result[:,i] = 1.0/nunique  # Fallback to uniform if sum is zero
+                
     return result
 
 def _normalize_by_column(array):

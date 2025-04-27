@@ -322,23 +322,41 @@ def compare_models(datasets):
             print("\nTraining RLiG model...")
             start_time = time.time()
             try:
-                # We need to convert back to original format for RLiG
+                # Make a copy of the original data for RLiG
+                # RLiG requires the original format data
                 rlig_model = RLiG()
-                rlig_model.fit(X, y, episodes=10, gan=1, k=0, epochs=10, n=1)
+                
+                # Use reduced parameters for testing to speed things up
+                episodes = 2  # Reduced from 10
+                epochs = 5    # Reduced from 10
+                
+                # Ensure the data is properly formatted
+                if isinstance(y, pd.DataFrame):
+                    y_series = y.iloc[:,0] if y.shape[1] == 1 else y
+                else:
+                    y_series = y
+                
+                # Add safeguard for CPD normalization issues
+                print(f"Starting RLiG fit with {episodes} episodes and {epochs} epochs...")
+                rlig_model.fit(X, y_series, episodes=episodes, gan=1, k=0, epochs=epochs, n=1)
                 rlig_time = time.time() - start_time
                 
-                # Evaluate using RLiG's own evaluation
-                rlig_results = evaluate_rlig(rlig_model, X, y)
-                rlig_bic = rlig_model.best_score if hasattr(rlig_model, 'best_score') else None
-                
-                if rlig_results:
-                    for clf_name, acc in rlig_results.items():
-                        model_results['metrics'][f'RLiG-{clf_name}'] = acc
-                
-                model_results['times']['RLiG'] = rlig_time
-                model_results['bic_scores']['RLiG'] = rlig_bic
-                
-                print(f"RLiG - Results: {rlig_results}, Time: {rlig_time:.2f}s, BIC: {rlig_bic}")
+                # Evaluate using RLiG's own evaluation with error handling
+                try:
+                    print("Evaluating RLiG model...")
+                    rlig_results = evaluate_rlig(rlig_model, X, y_series)
+                    rlig_bic = rlig_model.best_score if hasattr(rlig_model, 'best_score') else None
+                    
+                    if rlig_results:
+                        for clf_name, acc in rlig_results.items():
+                            model_results['metrics'][f'RLiG-{clf_name}'] = acc
+                    
+                    model_results['times']['RLiG'] = rlig_time
+                    model_results['bic_scores']['RLiG'] = rlig_bic
+                    
+                    print(f"RLiG - Results: {rlig_results}, Time: {rlig_time:.2f}s, BIC: {rlig_bic}")
+                except Exception as e:
+                    print(f"Error evaluating RLiG model: {e}")
                 
                 # Save the network structure visualization
                 try:
