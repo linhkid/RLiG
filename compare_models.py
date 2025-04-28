@@ -35,7 +35,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.metrics import accuracy_score
 
 # pgmpy imports
-from pgmpy.estimators import HillClimbSearch, BicScore, TreeSearch, MaximumLikelihoodEstimator
+from pgmpy.estimators import HillClimbSearch, BIC, TreeSearch, MaximumLikelihoodEstimator
 from pgmpy.models import BayesianNetwork
 from pgmpy.inference import VariableElimination
 from pgmpy.metrics import structure_score
@@ -241,7 +241,7 @@ def compare_models(datasets):
         start_time = time.time()
         try:
             hc = HillClimbSearch(train_data)
-            best_model_hc = hc.estimate(scoring_method=BicScore(train_data))
+            best_model_hc = hc.estimate(scoring_method=BIC(train_data))
             bn_hc = train_bn(best_model_hc, train_data)
             hc_time = time.time() - start_time
             
