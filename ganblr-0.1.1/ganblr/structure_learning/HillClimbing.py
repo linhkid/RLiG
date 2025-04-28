@@ -5,14 +5,13 @@ from itertools import permutations
 import networkx as nx
 from tqdm.auto import trange
 
-from pgmpy import config
 from pgmpy.models import BayesianNetwork
 from pgmpy.estimators import (
-    AICScore,
-    BDeuScore,
-    BDsScore,
-    BicScore,
-    K2Score,
+    AIC,
+    BDeu,
+    BDs,
+    BIC,
+    K2,
     ScoreCache,
     StructureEstimator,
     StructureScore,
@@ -204,11 +203,11 @@ class HillClimbSearch(StructureEstimator):
         # Step 1: Initial checks and setup for arguments
         # Step 1.1: Check scoring_method
         supported_methods = {
-            "k2score": K2Score,
-            "bdeuscore": BDeuScore,
-            "bdsscore": BDsScore,
-            "bicscore": BicScore,
-            "aicscore": AICScore,
+            "k2score": K2,
+            "bdeuscore": BDeu,
+            "bdsscore": BDs,
+            "bicscore": BIC,
+            "aicscore": AIC,
         }
 
         if isinstance(scoring_method, str):

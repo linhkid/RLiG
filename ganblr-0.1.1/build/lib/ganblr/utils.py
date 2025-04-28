@@ -25,11 +25,13 @@ class softmax_weight(tf.keras.constraints.Constraint):
     def get_config(self):
         return {'feature_idxs': self.feature_idxs}
 
+# Early Learning Regularization
 def elr_loss(KL_LOSS):
   def loss(y_true, y_pred):
     return tf.keras.losses.sparse_categorical_crossentropy(y_true, y_pred)+ KL_LOSS
   return loss
 
+#KL散度
 def KL_loss(prob_fake):
     return np.mean(-np.log(np.subtract(1,prob_fake)))
 
@@ -127,10 +129,10 @@ class DataUtils:
         self.data_size = len(x)
         self.num_features = x.shape[1]
 
-        yunique, ycounts = np.unique(y, return_counts=True)
+        yunique, ycounts = np.unique(y, return_counts=True) #标签和次数
         self.num_classes = len(yunique)
         self.class_counts = ycounts
-        self.feature_uniques = [len(np.unique(x[:,i])) for i in range(self.num_features)]
+        self.feature_uniques = [len(np.unique(x[:,i])) for i in range(self.num_features)] #对于列进行计算，计算每一个标签有多少特征
         
         self.constraint_positions = None
         self._kdbe = None
@@ -146,8 +148,8 @@ class DataUtils:
         if self.__kdbe_x is not None:
             return self.__kdbe_x
         if self._kdbe == None:
-            self._kdbe = KdbHighOrderFeatureEncoder()
-            self._kdbe.fit(self.x, self.y, k=k)
+            self._kdbe = KdbHighOrderFeatureEncoder() #这里是创建类
+            self._kdbe.fit(self.x, self.y, k=k) #这里才是真的利用fit去创建出了一个KDB
         kdbex = self._kdbe.transform(self.x)
         if dense_format:
             kdbex = kdbex.todense()

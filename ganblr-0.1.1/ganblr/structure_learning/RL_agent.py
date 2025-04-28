@@ -11,11 +11,11 @@ from warnings import simplefilter
 from pgmpy.models import BayesianNetwork
 from pgmpy.metrics import log_likelihood_score
 from pgmpy.estimators import (
-    AICScore,
-    BDeuScore,
-    BDsScore,
-    BicScore,
-    K2Score,
+    AIC,
+    BDeu,
+    BDs,
+    BIC,
+    K2,
     ScoreCache,
     StructureEstimator,
     StructureScore,
