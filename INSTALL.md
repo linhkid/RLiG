@@ -7,7 +7,7 @@ This document provides detailed instructions for installing RLiG and all require
 ### Step 1: Create a conda environment
 ```bash
 # Create a new conda environment with Python 3.8
-conda create -n rlig python=3.8 -y
+conda create -n rlig python=3.10 -y
 
 # Activate the environment
 conda activate rlig
@@ -16,25 +16,32 @@ conda activate rlig
 ### Step 2: Install core dependencies
 ```bash
 # Install core packages
-conda install -c conda-forge numpy pandas scikit-learn matplotlib -y
+pip install numpy pandas scikit-learn matplotlib pyitlib Pympler -y
 
 # Install specialized packages
-conda install -c conda-forge pgmpy networkx tqdm -y
+pip install git+https://github.com/pgmpy/pgmpy.git@dev
+pip install networkx tqdm -y
 ```
 
 ### Step 3: Install TensorFlow (specific version)
 ```bash
 # TensorFlow 2.6.2 is recommended for compatibility
-pip install tensorflow==2.6.2
+pip install tensorflow
 ```
 
 ### Step 4: Install additional packages for comparisons
 ```bash
 # Install packages for baseline comparisons
-pip install causalnex ucimlrepo
+pip install ucimlrepo
 ```
 
-### Step 5: Install RLiG package
+### Step 5: Check the main.py in ganblr
+```bash
+# Install packages for baseline comparisons
+python run ganblr-0.1.1/main.py
+```
+
+### Step 6: Install RLiG package
 ```bash
 # Navigate to the ganblr directory
 cd ganblr-0.1.1
