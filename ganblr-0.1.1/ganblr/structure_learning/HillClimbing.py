@@ -5,18 +5,21 @@ from itertools import permutations
 import networkx as nx
 from tqdm.auto import trange
 
-from pgmpy import config
+# Simplified imports - only what's actually used
 from pgmpy.models import BayesianNetwork
-from pgmpy.estimators import (
-    AICScore,
-    BDeuScore,
-    BDsScore,
-    BicScore,
-    K2Score,
-    ScoreCache,
-    StructureEstimator,
-    StructureScore,
-)
+from pgmpy.estimators import BicScore, ScoreCache
+
+# Add fallback for StructureEstimator if not available
+try:
+    from pgmpy.estimators import StructureEstimator
+except ImportError:
+    # Create a simple fallback implementation
+    class StructureEstimator:
+        """Base class for structure estimators when not available in pgmpy"""
+        def __init__(self, data, **kwargs):
+            self.data = data
+            for key, value in kwargs.items():
+                setattr(self, key, value)
 
 
 class HillClimbSearch(StructureEstimator):
