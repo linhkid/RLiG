@@ -28,6 +28,7 @@ logging.getLogger('pgmpy').setLevel(logging.ERROR)
 
 # scikit-learn imports
 from sklearn.naive_bayes import GaussianNB
+from sklearn.metrics import log_loss
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, LabelEncoder, KBinsDiscretizer
 from sklearn.compose import ColumnTransformer
@@ -36,7 +37,7 @@ from sklearn.metrics import accuracy_score
 
 # pgmpy imports
 from pgmpy.estimators import HillClimbSearch, BIC, TreeSearch, MaximumLikelihoodEstimator
-from pgmpy.models import BayesianNetwork
+from pgmpy.models import DiscreteBayesianNetwork
 from pgmpy.inference import VariableElimination
 from pgmpy.metrics import structure_score
 
@@ -113,9 +114,10 @@ def preprocess_data(X, y):
 # Model training and evaluation functions
 def train_bn(model, data):
     """Train a Bayesian Network model"""
-    bn = BayesianNetwork()
+    bn = DiscreteBayesianNetwork()
     bn.add_nodes_from(model.nodes())
     bn.add_edges_from(model.edges())
+    print(bn)
     
     # Fit model using Maximum Likelihood Estimation
     try:
@@ -186,7 +188,34 @@ def evaluate_rlig(model, X_test, y_test):
 def get_bic_score(model, data):
     """Calculate the BIC score for a model"""
     try:
-        return structure_score(model, data, scoring_method="bic")
+        return structure_score(model, data, scoring_method="bic-g")
+    except Exception as e:
+        print(f"Error calculating BIC score: {e}")
+        return None
+
+def get_gaussianNB_bic_score(model, data):
+    """Calculate the BIC score for a model"""
+    try:
+        X = data.iloc[:, :-1]
+        y = data.iloc[:, -1]
+        n_samples, n_features = X.shape
+        n_classes = len(np.unique(y))
+        # Get predicted probabilities
+        probs = model.predict_proba(X)
+
+        # Compute log-likelihood
+        log_likelihood = -log_loss(y, probs, labels=model.classes_, normalize=False)
+
+        # Estimate number of parameters:
+        # For GaussianNB:
+        # - Each feature per class has a mean and variance => 2 * n_features
+        # - Plus class priors (n_classes - 1 independent values)
+        k = n_classes * 2 * n_features + (n_classes - 1)
+
+        # Compute BIC
+        bic = -2 * log_likelihood + k * np.log(n_samples)
+
+        return bic
     except Exception as e:
         print(f"Error calculating BIC score: {e}")
         return None
@@ -288,11 +317,13 @@ def compare_models(datasets):
             
             # Evaluate
             nb_acc = evaluate_naive_bayes(nb, X_test, y_test)
+            nb_bic = get_gaussianNB_bic_score(nb, train_data) if nb else None
             
             model_results['metrics']['Naive Bayes'] = nb_acc
             model_results['times']['Naive Bayes'] = nb_time
+            model_results['bic_scores']['Naive'] = nb_bic
             
-            print(f"Naive Bayes - Accuracy: {nb_acc:.4f}, Time: {nb_time:.2f}s")
+            print(f"Naive Bayes - Accuracy: {nb_acc:.4f}, Time: {nb_time:.2f}s, BIC: {nb_bic}")
         except Exception as e:
             print(f"Error with Naive Bayes: {e}")
         

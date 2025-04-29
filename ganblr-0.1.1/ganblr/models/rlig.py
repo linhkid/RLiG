@@ -10,7 +10,7 @@ from ..structure_learning.HillClimbing import HillClimbSearch
 from ..structure_learning.utils.buffer import StackBuffer
 from ..structure_learning.RL_agent import ReinforcementLearningAgent
 from ..structure_learning.K2_agent import K2Agent
-from pgmpy.models import BayesianNetwork
+from pgmpy.models import DiscreteBayesianNetwork as BayesianNetwork
 from pgmpy.sampling import BayesianModelSampling
 from pgmpy.factors.discrete import TabularCPD
 from sklearn.preprocessing import OrdinalEncoder, LabelEncoder

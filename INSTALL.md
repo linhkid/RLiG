@@ -35,6 +35,12 @@ pip install tensorflow
 pip install ucimlrepo
 ```
 
+### Step 5: Install graphviz packages for specific machine: https://pygraphviz.github.io/documentation/stable/install.html
+```bash
+brew install graphviz
+pip install pygraphviz
+```
+
 ### Step 5: Check the main.py in ganblr
 ```bash
 # Install packages for baseline comparisons
