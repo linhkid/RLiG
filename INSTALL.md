@@ -6,11 +6,15 @@ This document provides detailed instructions for installing RLiG and all require
 
 ### Step 1: Create a conda environment
 ```bash
-# Create a new conda environment with Python 3.8
+# Create a new conda environment with Python 3.10 that is the required version of Python to run
 conda create -n rlig python=3.10 -y
 
 # Activate the environment
 conda activate rlig
+
+# Install by using the requirements.txt file
+pip install requirements.txt
+# then go to directly step 5 to install graphicviz
 ```
 
 ### Step 2: Install core dependencies
@@ -25,7 +29,7 @@ pip install networkx tqdm -y
 
 ### Step 3: Install TensorFlow (specific version)
 ```bash
-# TensorFlow 2.6.2 is recommended for compatibility
+# TensorFlow 2.19.0 is recommended for compatibility
 pip install tensorflow
 ```
 
@@ -39,6 +43,13 @@ pip install ucimlrepo
 ```bash
 brew install graphviz
 pip install pygraphviz
+```
+or if not working, use:
+```bash
+pip install --config-settings="--global-option=build_ext" \
+            --config-settings="--global-option=-I$(brew --prefix graphviz)/include/" \
+            --config-settings="--global-option=-L$(brew --prefix graphviz)/lib/" \
+            pygraphviz
 ```
 
 ### Step 5: Check the main.py in ganblr

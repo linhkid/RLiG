@@ -352,54 +352,100 @@ def compare_models(datasets):
         if RLIG_AVAILABLE:
             print("\nTraining RLiG model...")
             start_time = time.time()
+
+            # Make a copy of the original data for RLiG
+            # RLiG requires the original format data
+            rlig_model = RLiG()
+
+            # Use reduced parameters for testing to speed things up
+            episodes = 2  # Reduced from 10
+            epochs = 5  # Reduced from 10
+
+            # Ensure the data is properly formatted
+            if isinstance(y_test, pd.DataFrame):
+                y_series = y_test.iloc[:, 0] if y_test.shape[1] == 1 else y
+            else:
+                y_series = y_test
+
+            # Add safeguard for CPD normalization issues
+            print(f"Starting RLiG fit with {episodes} episodes and {epochs} epochs...")
+            rlig_model.fit(X_train, y_train, episodes=episodes, gan=1, k=0, epochs=epochs, n=1)
+            rlig_time = time.time() - start_time
+
+            # Evaluate using RLiG's own evaluation with error handling
             try:
-                # Make a copy of the original data for RLiG
-                # RLiG requires the original format data
-                rlig_model = RLiG()
-                
-                # Use reduced parameters for testing to speed things up
-                episodes = 2  # Reduced from 10
-                epochs = 5    # Reduced from 10
-                
-                # Ensure the data is properly formatted
-                if isinstance(y, pd.DataFrame):
-                    y_series = y.iloc[:,0] if y.shape[1] == 1 else y
-                else:
-                    y_series = y
-                
-                # Add safeguard for CPD normalization issues
-                print(f"Starting RLiG fit with {episodes} episodes and {epochs} epochs...")
-                rlig_model.fit(X, y_series, episodes=episodes, gan=1, k=0, epochs=epochs, n=1)
-                rlig_time = time.time() - start_time
-                
-                # Evaluate using RLiG's own evaluation with error handling
-                try:
-                    print("Evaluating RLiG model...")
-                    rlig_results = evaluate_rlig(rlig_model, X, y_series)
-                    rlig_bic = rlig_model.best_score if hasattr(rlig_model, 'best_score') else None
-                    
-                    if rlig_results:
-                        for clf_name, acc in rlig_results.items():
-                            model_results['metrics'][f'RLiG-{clf_name}'] = acc
-                    
-                    model_results['times']['RLiG'] = rlig_time
-                    model_results['bic_scores']['RLiG'] = rlig_bic
-                    
-                    print(f"RLiG - Results: {rlig_results}, Time: {rlig_time:.2f}s, BIC: {rlig_bic}")
-                except Exception as e:
-                    print(f"Error evaluating RLiG model: {e}")
-                
-                # Save the network structure visualization
-                try:
-                    if hasattr(rlig_model, 'bayesian_network'):
-                        model_graphviz = rlig_model.bayesian_network.to_graphviz()
-                        model_graphviz.draw(f"rlig_{name}_network.png", prog="dot")
-                        print(f"RLiG network visualization saved to rlig_{name}_network.png")
-                except Exception as e:
-                    print(f"Error saving RLiG network visualization: {e}")
-                
+                print("Evaluating RLiG model...")
+                rlig_results = evaluate_rlig(rlig_model, X_test, y_series)
+                rlig_bic = rlig_model.best_score if hasattr(rlig_model, 'best_score') else None
+
+                if rlig_results:
+                    for clf_name, acc in rlig_results.items():
+                        model_results['metrics'][f'RLiG-{clf_name}'] = acc
+
+                model_results['times']['RLiG'] = rlig_time
+                model_results['bic_scores']['RLiG'] = rlig_bic
+
+                print(f"RLiG - Results: {rlig_results}, Time: {rlig_time:.2f}s, BIC: {rlig_bic}")
             except Exception as e:
-                print(f"Error with RLiG: {e}")
+                print(f"Error evaluating RLiG model: {e}")
+
+            # Save the network structure visualization
+            try:
+                if hasattr(rlig_model, 'bayesian_network'):
+                    model_graphviz = rlig_model.bayesian_network.to_graphviz()
+                    model_graphviz.draw(f"rlig_{name}_network.png", prog="dot")
+                    print(f"RLiG network visualization saved to rlig_{name}_network.png")
+            except Exception as e:
+                print(f"Error saving RLiG network visualization: {e}")
+
+            # try:
+            #     # Make a copy of the original data for RLiG
+            #     # RLiG requires the original format data
+            #     rlig_model = RLiG()
+            #
+            #     # Use reduced parameters for testing to speed things up
+            #     episodes = 2  # Reduced from 10
+            #     epochs = 5    # Reduced from 10
+            #
+            #     # Ensure the data is properly formatted
+            #     if isinstance(y, pd.DataFrame):
+            #         y_series = y.iloc[:,0] if y.shape[1] == 1 else y
+            #     else:
+            #         y_series = y
+            #
+            #     # Add safeguard for CPD normalization issues
+            #     print(f"Starting RLiG fit with {episodes} episodes and {epochs} epochs...")
+            #     rlig_model.fit(X, y_series, episodes=episodes, gan=1, k=0, epochs=epochs, n=1)
+            #     rlig_time = time.time() - start_time
+            #
+            #     # Evaluate using RLiG's own evaluation with error handling
+            #     try:
+            #         print("Evaluating RLiG model...")
+            #         rlig_results = evaluate_rlig(rlig_model, X, y_series)
+            #         rlig_bic = rlig_model.best_score if hasattr(rlig_model, 'best_score') else None
+            #
+            #         if rlig_results:
+            #             for clf_name, acc in rlig_results.items():
+            #                 model_results['metrics'][f'RLiG-{clf_name}'] = acc
+            #
+            #         model_results['times']['RLiG'] = rlig_time
+            #         model_results['bic_scores']['RLiG'] = rlig_bic
+            #
+            #         print(f"RLiG - Results: {rlig_results}, Time: {rlig_time:.2f}s, BIC: {rlig_bic}")
+            #     except Exception as e:
+            #         print(f"Error evaluating RLiG model: {e}")
+            #
+            #     # Save the network structure visualization
+            #     try:
+            #         if hasattr(rlig_model, 'bayesian_network'):
+            #             model_graphviz = rlig_model.bayesian_network.to_graphviz()
+            #             model_graphviz.draw(f"rlig_{name}_network.png", prog="dot")
+            #             print(f"RLiG network visualization saved to rlig_{name}_network.png")
+            #     except Exception as e:
+            #         print(f"Error saving RLiG network visualization: {e}")
+            #
+            # except Exception as e:
+            #     print(f"Error with RLiG: {e}")
             
             # Clean up to prevent memory issues
             gc.collect()
