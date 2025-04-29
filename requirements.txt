@@ -1,0 +1,15 @@
+causalnex==0.12.1
+matplotlib==3.10.1
+networkx==3.4.2
+numpy==2.1.3
+pandas==2.2.3
+pgmpy @ git+https://github.com/pgmpy/pgmpy.git@4c3b57c84844eef8ba4c0861a7dc9d9341bc8681
+pillow==11.2.1
+pyitlib==0.3.0
+Pympler==1.1
+scikit-learn==1.6.1
+scipy==1.15.2
+tensorflow==2.19.0
+torch==2.7.0
+tqdm==4.67.1
+ucimlrepo==0.0.7
