@@ -82,6 +82,8 @@ def preprocess_data(X, y):
     # Identify column types
     continuous_cols = X.select_dtypes(include=['number']).columns
     categorical_cols = X.select_dtypes(include=['object']).columns
+    print("continuous columns: ", continuous_cols)
+    print("categorical columns: ", categorical_cols)
     
     # Create transformation pipeline
     transformers = []
@@ -187,11 +189,12 @@ def evaluate_rlig(model, X_test, y_test):
 
 def get_bic_score(model, data):
     """Calculate the BIC score for a model"""
-    try:
-        return structure_score(model, data, scoring_method="bic-g")
-    except Exception as e:
-        print(f"Error calculating BIC score: {e}")
-        return None
+    return structure_score(model, data, scoring_method="bic-g")
+    # try:
+    #     return structure_score(model, data, scoring_method="bic-g")
+    # except Exception as e:
+    #     print(f"Error calculating BIC score: {e}")
+    #     return None
 
 def get_gaussianNB_bic_score(model, data):
     """Calculate the BIC score for a model"""
@@ -232,8 +235,13 @@ def compare_models(datasets):
         if isinstance(dataset_info, int) and UCI_AVAILABLE:
             try:
                 data = fetch_ucirepo(id=dataset_info)
+
                 X = data.data.features
+                # Change the name of columns to avoid "-" to parsing error
+                X.columns = [col.replace('-', '_') for col in X.columns]
                 y = data.data.targets
+                # Change the name of y Series to avoid duplicate "class" keyword
+                y.columns = ["target"]
             except Exception as e:
                 print(f"Error loading UCI dataset {name} (id={dataset_info}): {e}")
                 continue
@@ -253,6 +261,7 @@ def compare_models(datasets):
         try:
             X_train, X_test, y_train, y_test = preprocess_data(X, y)
             train_data = pd.concat([X_train, y_train], axis=1)
+            train_data.to_csv(f"{name}_train_data.csv")
             print(f"Data loaded and preprocessed. Training data shape: {train_data.shape}")
         except Exception as e:
             print(f"Error preprocessing data: {e}")
@@ -268,6 +277,22 @@ def compare_models(datasets):
         # Hill Climbing Search
         print("\nTraining Hill Climbing model...")
         start_time = time.time()
+
+        hc = HillClimbSearch(train_data)
+        best_model_hc = hc.estimate(scoring_method=BIC(train_data))
+        bn_hc = train_bn(best_model_hc, train_data)
+        hc_time = time.time() - start_time
+
+        # Evaluate
+        hc_acc = evaluate_bn_model(bn_hc, X_test, y_test)
+        hc_bic = get_bic_score(bn_hc, train_data) if bn_hc else None
+
+        model_results['metrics']['Hill Climbing'] = hc_acc
+        model_results['times']['Hill Climbing'] = hc_time
+        model_results['bic_scores']['Hill Climbing'] = hc_bic
+
+        print(f"Hill Climbing - Accuracy: {hc_acc:.4f}, Time: {hc_time:.2f}s, BIC: {hc_bic}")
+
         try:
             hc = HillClimbSearch(train_data)
             best_model_hc = hc.estimate(scoring_method=BIC(train_data))
