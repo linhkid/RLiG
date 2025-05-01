@@ -26,6 +26,9 @@ warnings.filterwarnings("ignore")
 logging.getLogger('tensorflow').setLevel(logging.ERROR)
 logging.getLogger('pgmpy').setLevel(logging.ERROR)
 
+# scipy imports
+from scipy.io.arff import loadarff
+
 # scikit-learn imports
 from sklearn.naive_bayes import GaussianNB
 from sklearn.metrics import log_loss
@@ -66,6 +69,20 @@ except ImportError:
     print("ucimlrepo not available. Will use local datasets.")
     UCI_AVAILABLE = False
 
+
+# Read the ARFF file using scipy's loadarff function
+def read_arff_file(file_path):
+    data, meta = loadarff(file_path)
+    # Convert to pandas DataFrame
+    df = pd.DataFrame(data)
+
+    # Convert byte strings to regular strings (if needed)
+    for col in df.columns:
+        if df[col].dtype == object:  # Object type typically indicates byte strings from ARFF
+            df[col] = df[col].str.decode('utf-8')
+
+    return df, meta
+
 # Data preprocessing functions
 def label_encode_cols(X, cols):
     """Label encode categorical columns"""
@@ -97,12 +114,12 @@ def preprocess_data(X, y):
     # Handle categorical columns
     if len(categorical_cols) > 0:
         X, encoders = label_encode_cols(X, categorical_cols)
-    
+
     # Apply transformations
     preprocessor = ColumnTransformer(transformers=transformers, remainder='passthrough')
     X_transformed = preprocessor.fit_transform(X)
     X_transformed_df = pd.DataFrame(X_transformed, columns=continuous_cols.tolist() + categorical_cols.tolist())
-    
+
     # Handle target variable
     if y.dtypes[0] == 'object':
         label_encoder = LabelEncoder()
@@ -119,7 +136,7 @@ def train_bn(model, data):
     bn = DiscreteBayesianNetwork()
     bn.add_nodes_from(model.nodes())
     bn.add_edges_from(model.edges())
-    print(bn)
+    print("Bayesian Network: ", bn)
     
     # Fit model using Maximum Likelihood Estimation
     try:
@@ -189,12 +206,11 @@ def evaluate_rlig(model, X_test, y_test):
 
 def get_bic_score(model, data):
     """Calculate the BIC score for a model"""
-    return structure_score(model, data, scoring_method="bic-g")
-    # try:
-    #     return structure_score(model, data, scoring_method="bic-g")
-    # except Exception as e:
-    #     print(f"Error calculating BIC score: {e}")
-    #     return None
+    try:
+        return structure_score(model, data, scoring_method="bic-cg")
+    except Exception as e:
+        print(f"Error calculating BIC score: {e}")
+        return None
 
 def get_gaussianNB_bic_score(model, data):
     """Calculate the BIC score for a model"""
@@ -240,16 +256,31 @@ def compare_models(datasets):
                 # Change the name of columns to avoid "-" to parsing error
                 X.columns = [col.replace('-', '_') for col in X.columns]
                 y = data.data.targets
-                # Change the name of y Series to avoid duplicate "class" keyword
+                # Change the name of y dataframe to avoid duplicate "class" keyword
                 y.columns = ["target"]
             except Exception as e:
                 print(f"Error loading UCI dataset {name} (id={dataset_info}): {e}")
                 continue
         elif isinstance(dataset_info, str):
             try:
-                df = pd.read_csv(dataset_info)
-                X = df.iloc[:, :-1]
-                y = df.iloc[:, -1:] 
+                if dataset_info.endswith(".csv"):
+                    df = pd.read_csv(dataset_info)
+                    X = df.iloc[:, :-1]
+                    # Change the name of columns to avoid "-" to parsing error
+                    X.columns = [col.replace('-', '_') for col in X.columns]
+                    y = df.iloc[:, -1:]
+                    # Change the name of y dataframe to avoid duplicate "class" keyword
+                    y.columns = ["target"]
+                else:
+                    # Read arff file
+                    df, meta = read_arff_file(dataset_info)
+                    # Encode categorical variables
+                    X = df.drop('class', axis=1)
+                    # Change the name of columns to avoid "-" to parsing error
+                    X.columns = [col.replace('-', '_') for col in X.columns]
+                    y = df.iloc[:, -1:]
+                    # Change the name of y dataframe to avoid duplicate "class" keyword
+                    y.columns = ["target"]
             except Exception as e:
                 print(f"Error loading dataset from file {dataset_info}: {e}")
                 continue
@@ -378,99 +409,54 @@ def compare_models(datasets):
             print("\nTraining RLiG model...")
             start_time = time.time()
 
-            # Make a copy of the original data for RLiG
-            # RLiG requires the original format data
-            rlig_model = RLiG()
-
-            # Use reduced parameters for testing to speed things up
-            episodes = 2  # Reduced from 10
-            epochs = 5  # Reduced from 10
-
-            # Ensure the data is properly formatted
-            if isinstance(y_test, pd.DataFrame):
-                y_series = y_test.iloc[:, 0] if y_test.shape[1] == 1 else y
-            else:
-                y_series = y_test
-
-            # Add safeguard for CPD normalization issues
-            print(f"Starting RLiG fit with {episodes} episodes and {epochs} epochs...")
-            rlig_model.fit(X_train, y_train, episodes=episodes, gan=1, k=0, epochs=epochs, n=1)
-            rlig_time = time.time() - start_time
-
-            # Evaluate using RLiG's own evaluation with error handling
             try:
-                print("Evaluating RLiG model...")
-                rlig_results = evaluate_rlig(rlig_model, X_test, y_series)
-                rlig_bic = rlig_model.best_score if hasattr(rlig_model, 'best_score') else None
+                # Make a copy of the original data for RLiG
+                # RLiG requires the original format data
+                rlig_model = RLiG()
 
-                if rlig_results:
-                    for clf_name, acc in rlig_results.items():
-                        model_results['metrics'][f'RLiG-{clf_name}'] = acc
+                # Use reduced parameters for testing to speed things up
+                episodes = 2  # Reduced from 10
+                epochs = 5  # Reduced from 10
 
-                model_results['times']['RLiG'] = rlig_time
-                model_results['bic_scores']['RLiG'] = rlig_bic
+                # Ensure the data is properly formatted
+                if isinstance(y_test, pd.DataFrame):
+                    y_series = y_test.iloc[:, 0] if y_test.shape[1] == 1 else y
+                else:
+                    y_series = y_test
 
-                print(f"RLiG - Results: {rlig_results}, Time: {rlig_time:.2f}s, BIC: {rlig_bic}")
-            except Exception as e:
-                print(f"Error evaluating RLiG model: {e}")
+                # Add safeguard for CPD normalization issues
+                print(f"Starting RLiG fit with {episodes} episodes and {epochs} epochs...")
+                rlig_model.fit(X_train, y_train, episodes=episodes, gan=1, k=0, epochs=epochs, n=1)
+                rlig_time = time.time() - start_time
 
-            # Save the network structure visualization
-            try:
-                if hasattr(rlig_model, 'bayesian_network'):
+                # Evaluate using RLiG's own evaluation with error handling
+                try:
+                    print("Evaluating RLiG model...")
+                    rlig_results = evaluate_rlig(rlig_model, X_test, y_series)
+                    rlig_bic = rlig_model.best_score if hasattr(rlig_model, 'best_score') else None
+
+                    if rlig_results:
+                        for clf_name, acc in rlig_results.items():
+                            model_results['metrics'][f'RLiG-{clf_name}'] = acc
+
+                    model_results['times']['RLiG'] = rlig_time
+                    model_results['bic_scores']['RLiG'] = rlig_bic
+
+                    print(f"RLiG - Results: {rlig_results}, Time: {rlig_time:.2f}s, BIC: {rlig_bic}")
+                except Exception as e:
+                    print(f"Error evaluating RLiG model: {e}")
+
+                # Save the network structure visualization
+                try:
+                    # if hasattr(rlig_model, 'bayesian_network'):
                     model_graphviz = rlig_model.bayesian_network.to_graphviz()
                     model_graphviz.draw(f"rlig_{name}_network.png", prog="dot")
                     print(f"RLiG network visualization saved to rlig_{name}_network.png")
-            except Exception as e:
-                print(f"Error saving RLiG network visualization: {e}")
+                except Exception as e:
+                    print(f"Error saving RLiG network visualization: {e}")
 
-            # try:
-            #     # Make a copy of the original data for RLiG
-            #     # RLiG requires the original format data
-            #     rlig_model = RLiG()
-            #
-            #     # Use reduced parameters for testing to speed things up
-            #     episodes = 2  # Reduced from 10
-            #     epochs = 5    # Reduced from 10
-            #
-            #     # Ensure the data is properly formatted
-            #     if isinstance(y, pd.DataFrame):
-            #         y_series = y.iloc[:,0] if y.shape[1] == 1 else y
-            #     else:
-            #         y_series = y
-            #
-            #     # Add safeguard for CPD normalization issues
-            #     print(f"Starting RLiG fit with {episodes} episodes and {epochs} epochs...")
-            #     rlig_model.fit(X, y_series, episodes=episodes, gan=1, k=0, epochs=epochs, n=1)
-            #     rlig_time = time.time() - start_time
-            #
-            #     # Evaluate using RLiG's own evaluation with error handling
-            #     try:
-            #         print("Evaluating RLiG model...")
-            #         rlig_results = evaluate_rlig(rlig_model, X, y_series)
-            #         rlig_bic = rlig_model.best_score if hasattr(rlig_model, 'best_score') else None
-            #
-            #         if rlig_results:
-            #             for clf_name, acc in rlig_results.items():
-            #                 model_results['metrics'][f'RLiG-{clf_name}'] = acc
-            #
-            #         model_results['times']['RLiG'] = rlig_time
-            #         model_results['bic_scores']['RLiG'] = rlig_bic
-            #
-            #         print(f"RLiG - Results: {rlig_results}, Time: {rlig_time:.2f}s, BIC: {rlig_bic}")
-            #     except Exception as e:
-            #         print(f"Error evaluating RLiG model: {e}")
-            #
-            #     # Save the network structure visualization
-            #     try:
-            #         if hasattr(rlig_model, 'bayesian_network'):
-            #             model_graphviz = rlig_model.bayesian_network.to_graphviz()
-            #             model_graphviz.draw(f"rlig_{name}_network.png", prog="dot")
-            #             print(f"RLiG network visualization saved to rlig_{name}_network.png")
-            #     except Exception as e:
-            #         print(f"Error saving RLiG network visualization: {e}")
-            #
-            # except Exception as e:
-            #     print(f"Error with RLiG: {e}")
+            except Exception as e:
+                print(f"Error with RLiG: {e}")
             
             # Clean up to prevent memory issues
             gc.collect()
@@ -506,9 +492,11 @@ if __name__ == "__main__":
     # Define datasets to evaluate
     # Format: {name: dataset_id_or_path}
     datasets = {
-        'Rice': 545,       # UCI ID for Rice dataset
-        'TicTacToe': 101   # UCI ID for Tic-tac-toe dataset
+        'Rice': 545,        # UCI ID for Rice dataset
+        'TicTacToe': 101,   # UCI ID for Tic-tac-toe dataset
         # Add more datasets as needed
+        'car': 'data/car.arff',
+        'adult': 'data/adult.arff'
     }
     
     # Run the comparison
