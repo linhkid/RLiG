@@ -6,7 +6,7 @@ from ganblr import get_demo_data
 from ganblr.models import GANBLR
 from ganblr.models import RLiG
 from ucimlrepo import fetch_ucirepo
-from pgmpy.estimators import HillClimbSearch, BicScore
+from pgmpy.estimators import HillClimbSearch, BIC
 
 # # this is a discrete version of adult since GANBLR requires discrete data.
 # df = get_demo_data('adult')
@@ -53,7 +53,7 @@ def test_ganblr(name="adult"):
 
 
     est = HillClimbSearch(df)
-    model = est.estimate(scoring_method=BicScore(df))
+    model = est.estimate(scoring_method=BIC(df))
 
 
     print("Dataset:",name)
