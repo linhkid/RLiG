@@ -13,7 +13,7 @@ conda create -n rlig python=3.10 -y
 conda activate rlig
 
 # Install by using the requirements.txt file
-pip install requirements.txt
+pip install -r requirements.txt
 # then go to directly step 5 to install graphicviz
 ```
 
@@ -52,10 +52,13 @@ pip install --config-settings="--global-option=build_ext" \
             pygraphviz
 ```
 
-### Step 5: Check the main.py in ganblr
+### Step 5: Check installation with a test run
 ```bash
-# Install packages for baseline comparisons
-python run ganblr-0.1.1/main.py
+# Run a test of the installation
+python ganblr-0.1.1/main.py
+
+# Test evaluation scripts
+python eval_tstr_final.py --datasets TicTacToe
 ```
 
 ### Step 6: Install RLiG package
@@ -190,4 +193,24 @@ python
 >>> from ganblr.models import RLiG
 >>> print(f"TensorFlow version: {tf.__version__}")
 >>> print("Installation successful!")
+```
+
+## Running Evaluation Scripts
+
+After installation, you can run the evaluation scripts:
+
+```bash
+# For TSTR (Train on Synthetic, Test on Real) evaluation
+python eval_tstr_final.py
+
+# For evaluation on real data
+python compare_models_real_data.py
+```
+
+The scripts will:
+1. Load datasets (from UCI repository or local files)
+2. Preprocess data for model compatibility
+3. Train and evaluate models
+4. Save results to CSV files in the 'results' directory
+5. Save network visualizations to the 'img' directory
 ```

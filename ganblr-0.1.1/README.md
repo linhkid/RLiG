@@ -71,18 +71,31 @@ synthetic_data = model.sample(1000)
 # Documentation
 
 You can check the documentation at [https://ganblr-docs.readthedocs.io/en/latest/](https://ganblr-docs.readthedocs.io/en/latest/).
-# Leaderboard
+# Model Evaluation
 
-Here we show the results of the TSTR(Training on Synthetic data, Testing on Real data) evaluation on `Adult` dataset based on the experiments in our paper. 
+We provide comprehensive evaluation scripts for both Train on Real, Test on Real (TRTR) and Train on Synthetic, Test on Real (TSTR) methodologies.
 
-TRTR(Train on Real, Test on Real) will be used as the baseline for comparison. You are welcome to update this Leaderboard.
+## Evaluation Scripts
 
-|          | LR     | MLP    | RF     | XGBT   |
+- `compare_models_real_data.py`: Evaluates models on real data (TRTR)
+- `eval_tstr_final.py`: Implements TSTR evaluation for generative models
+
+## TSTR Leaderboard
+
+Here we show the results of the TSTR (Train on Synthetic, Test on Real) evaluation on various datasets based on the experiments in our paper.
+
+TRTR (Train on Real, Test on Real) is used as the baseline for comparison.
+
+### Adult Dataset Results
+
+|          | LR     | MLP    | RF     | AVG    |
 |----------|--------|--------|--------|--------|
-| TRTR     | 0.8741 | 0.8561 | 0.8379 | 0.8562 |
-| GANBLR   | 0.74   | 0.842  | 0.81   | 0.851  |
-| CTGAN    | 0.787  | 0.831  | 0.792  | 0.839  |
-| ...      | ...    | ...    | ...    | ...    |
+| TRTR     | 0.8741 | 0.8561 | 0.8379 | 0.8560 |
+| RLiG     | 0.8250 | 0.8050 | 0.8214 | 0.8171 |
+| GANBLR++ | 0.8244 | 0.8219 | 0.8036 | 0.8166 |
+| GANBLR   | 0.7856 | 0.7852 | 0.7544 | 0.7751 |
+| CTGAN    | 0.8258 | 0.8254 | 0.8257 | 0.8256 |
+| NB       | 0.7607 | 0.7607 | 0.7607 | 0.7607 |
 
 # Citation
 If you use GANBLR, please cite the following work:
