@@ -1,4 +1,4 @@
-Metadata-Version: 2.2
+Metadata-Version: 2.1
 Name: ganblr
 Version: 0.1.1
 Summary: Ganblr Toolbox
@@ -20,18 +20,6 @@ Requires-Dist: tensorflow>=2.3
 Requires-Dist: scikit-learn>=0.24
 Requires-Dist: pyitlib
 Requires-Dist: pgmpy
-Dynamic: author
-Dynamic: author-email
-Dynamic: classifier
-Dynamic: description
-Dynamic: description-content-type
-Dynamic: home-page
-Dynamic: keywords
-Dynamic: license
-Dynamic: platform
-Dynamic: requires-dist
-Dynamic: requires-python
-Dynamic: summary
 
 # GANBLR Toolbox
 

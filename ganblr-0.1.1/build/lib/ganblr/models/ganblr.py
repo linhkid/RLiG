@@ -19,8 +19,8 @@ class GANBLR:
         self.epochs = None
         self.k = None
         self.constraints = None
-        self._ordinal_encoder = OrdinalEncoder(dtype=int, handle_unknown='use_encoded_value', unknown_value=-1)
-        self._label_encoder   = LabelEncoder()
+        self._ordinal_encoder = OrdinalEncoder(dtype=int, handle_unknown='use_encoded_value', unknown_value=-1) #将分类特征转换成整数，未知时编码为-1
+        self._label_encoder   = LabelEncoder() #一般用于目标变量的编码，例如分类问题中的目标标签
     
     def fit(self, x, y, k=0, batch_size=32, epochs=10, warmup_epochs=1, verbose=1):
         '''
@@ -59,26 +59,28 @@ class GANBLR:
         x = self._ordinal_encoder.fit_transform(x)
         y = self._label_encoder.fit_transform(y).astype(int)
         d = DataUtils(x, y)
-        self._d = d
-        self.k = k
+        self._d = d #DataUtils
+        self.k = k #k value for kdb
         self.batch_size = batch_size
         if verbose:
             print(f"warmup run:")
         history = self._warmup_run(warmup_epochs, verbose=verbose)
         syn_data = self._sample(verbose=0)
-        discriminator_label = np.hstack([np.ones(d.data_size), np.zeros(d.data_size)])
+        discriminator_label = np.hstack([np.ones(d.data_size), np.zeros(d.data_size)]) #2N, first half 1, latter half 0. 1 for real, 0 for syn
+
         for i in range(epochs):
-            discriminator_input = np.vstack([x, syn_data[:,:-1]])
+            discriminator_input = np.vstack([x, syn_data[:,:-1]]) #Real data, sampled data
             disc_input, disc_label = sample(discriminator_input, discriminator_label, frac=0.8)
             disc = self._discrim()
-            d_history = disc.fit(disc_input, disc_label, batch_size=batch_size, epochs=1, verbose=0).history
-            prob_fake = disc.predict(x, verbose=0)
-            ls = np.mean(-np.log(np.subtract(1, prob_fake)))
+            d_history = disc.fit(disc_input, disc_label, batch_size=batch_size, epochs=1, verbose=0).history # discriminator fit
+            prob_fake = disc.predict(x, verbose=0) #fake的概率，要看disc的实现
+            ls = np.mean(-np.log(np.subtract(1, prob_fake))) # 1-prob_fake reward中的第二项
+            # ls = np.mean(-np.log(1))  # Just 1
             g_history = self._run_generator(loss=ls).history
-            syn_data = self._sample(verbose=0)
-            
+            syn_data = self._sample(verbose=0) #sample syn data
             if verbose:
                 print(f"Epoch {i+1}/{epochs}: G_loss = {g_history['loss'][0]:.6f}, G_accuracy = {g_history['accuracy'][0]:.6f}, D_loss = {d_history['loss'][0]:.6f}, D_accuracy = {d_history['accuracy'][0]:.6f}")
+                # print(f"Epoch {i+1}/{epochs}: G_loss = {g_history['loss'][0]:.6f}, G_accuracy = {g_history['accuracy'][0]:.6f}")
         return self
         
     def evaluate(self, x, y, model='lr') -> float:
@@ -92,7 +94,7 @@ class GANBLR:
 
         model : str or object
             The model used for evaluate. Should be one of ['lr', 'mlp', 'rf'], or a model class that have sklearn-style `fit` and `predict` method.
-
+            几种模型直接就是实现好的，看这里
         Return:
         --------
         accuracy_score : float.
@@ -118,15 +120,16 @@ class GANBLR:
         else:
             raise Exception("Invalid Arugument `model`, Should be one of ['lr', 'mlp', 'rf'], or a model class that have sklearn-style `fit` and `predict` method.")
 
-        synthetic_data = self._sample()
+        synthetic_data = self._sample() #Sample the synthetic data
         synthetic_x, synthetic_y = synthetic_data[:,:-1], synthetic_data[:,-1]
-        x_test = self._ordinal_encoder.transform(x)
+        x_test = self._ordinal_encoder.transform(x) #The real dataset
         y_test = self._label_encoder.transform(y)
 
+        #Testing the model
         categories = self._d.get_categories()
         pipline = Pipeline([('encoder', OneHotEncoder(categories=categories, handle_unknown='ignore')), ('model',  eval_model)]) 
-        pipline.fit(synthetic_x, synthetic_y)
-        pred = pipline.predict(x_test)
+        pipline.fit(synthetic_x, synthetic_y) #TS
+        pred = pipline.predict(x_test) #TR
         return accuracy_score(y_test, pred)
     
     def sample(self, size=None, verbose=1) -> np.ndarray:
@@ -147,27 +150,41 @@ class GANBLR:
             Generated synthetic data.
         """
         ordinal_data = self._sample(size, verbose)
-        origin_x = self._ordinal_encoder.inverse_transform(ordinal_data[:,:-1])
+        origin_x = self._ordinal_encoder.inverse_transform(ordinal_data[:,:-1]) #因为在_sample中是按照序数编码格式，所以这一步是将序数编码格式转换为原格式
         origin_y = self._label_encoder.inverse_transform(ordinal_data[:,-1]).reshape(-1,1)
         return np.hstack([origin_x, origin_y])
         
     def _sample(self, size=None, verbose=1) -> np.ndarray:
+        #The sample need to be modified
         """
-        Generate synthetic data in ordinal encoding format
+        Generate synthetic data in ordinal encoding format 按照序数编码格式
+        """
+
+        """
+        每个节点表示一个随机变量，并且每个节点都有一个 CPD 表，用来表示该节点在其父节点给定的条件下的概率分布。具体来说，如果我们有一个节点 X
+        X 和它的父节点 Parents(X)，那么 CPD 表表示 P(X∣Parents(X))。
+        
+        | A | B | P(C=1 | A, B) | P(C=0 | A, B) |
+        |---|---|--------------|--------------|
+        | 0 | 0 | 0.1 | 0.9 |
+        | 0 | 1 | 0.4 | 0.6 |
+        | 1 | 0 | 0.7 | 0.3 |
+        | 1 | 1 | 0.9 | 0.1 |
         """
         if verbose is None or not isinstance(verbose, int):
             verbose = 1
         #basic varibles
-        d = self._d
-        feature_cards = np.array(d.feature_uniques)
+        d = self._d #DataUtil 应该使用数据生成的，所以要看一下DataUtil是什么
+        feature_cards = np.array(d.feature_uniques)#特征的所有取值
         #ensure sum of each constraint group equals to 1, then re concat the probs
-        _idxs = np.cumsum([0] + d._kdbe.constraints_.tolist())
+        _idxs = np.cumsum([0] + d._kdbe.constraints_.tolist()) #这个应该是在生成所有的约束
         constraint_idxs = [(_idxs[i],_idxs[i+1]) for i in range(len(_idxs)-1)]
         
+        #生成CPD表
         probs = np.exp(self.__gen_weights[0])
         cpd_probs = [probs[start:end,:] for start, end in constraint_idxs]
         cpd_probs = np.vstack([p/p.sum(axis=0) for p in cpd_probs])
-    
+
         #assign the probs to the full cpd tables
         idxs = np.cumsum([0] + d._kdbe.high_order_feature_uniques_)
         feature_idxs = [(idxs[i],idxs[i+1]) for i in range(len(idxs)-1)]
@@ -226,7 +243,7 @@ class GANBLR:
 
     def _run_generator(self, loss):
         d = self._d
-        ohex = d.get_kdbe_x(self.k)
+        ohex = d.get_kdbe_x(self.k)#获得一个高阶的？ Higher-order feature
         tf.keras.backend.clear_session()
         model = tf.keras.Sequential()
         model.add(tf.keras.layers.Dense(d.num_classes, input_dim=ohex.shape[1], activation='softmax',kernel_constraint=self.constraints))

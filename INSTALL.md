@@ -6,35 +6,62 @@ This document provides detailed instructions for installing RLiG and all require
 
 ### Step 1: Create a conda environment
 ```bash
-# Create a new conda environment with Python 3.8
-conda create -n rlig python=3.8 -y
+# Create a new conda environment with Python 3.10 that is the required version of Python to run
+conda create -n rlig python=3.10 -y
 
 # Activate the environment
 conda activate rlig
+
+# Install by using the requirements.txt file
+pip install -r requirements.txt
+# then go to directly step 5 to install graphicviz
 ```
 
 ### Step 2: Install core dependencies
 ```bash
 # Install core packages
-conda install -c conda-forge numpy pandas scikit-learn matplotlib -y
+pip install numpy pandas scikit-learn matplotlib pyitlib Pympler -y
 
 # Install specialized packages
-conda install -c conda-forge pgmpy networkx tqdm -y
+pip install git+https://github.com/pgmpy/pgmpy.git@dev
+pip install networkx tqdm -y
 ```
 
 ### Step 3: Install TensorFlow (specific version)
 ```bash
-# TensorFlow 2.6.2 is recommended for compatibility
-pip install tensorflow==2.6.2
+# TensorFlow 2.19.0 is recommended for compatibility
+pip install tensorflow
 ```
 
 ### Step 4: Install additional packages for comparisons
 ```bash
 # Install packages for baseline comparisons
-pip install causalnex ucimlrepo
+pip install ucimlrepo
 ```
 
-### Step 5: Install RLiG package
+### Step 5: Install graphviz packages for specific machine: https://pygraphviz.github.io/documentation/stable/install.html
+```bash
+brew install graphviz
+pip install pygraphviz
+```
+or if not working, use:
+```bash
+pip install --config-settings="--global-option=build_ext" \
+            --config-settings="--global-option=-I$(brew --prefix graphviz)/include/" \
+            --config-settings="--global-option=-L$(brew --prefix graphviz)/lib/" \
+            pygraphviz
+```
+
+### Step 5: Check installation with a test run
+```bash
+# Run a test of the installation
+python ganblr-0.1.1/main.py
+
+# Test evaluation scripts
+python eval_tstr_final.py --datasets TicTacToe
+```
+
+### Step 6: Install RLiG package
 ```bash
 # Navigate to the ganblr directory
 cd ganblr-0.1.1
@@ -186,4 +213,24 @@ python
 >>> from ganblr.models import RLiG
 >>> print(f"TensorFlow version: {tf.__version__}")
 >>> print("Installation successful!")
+```
+
+## Running Evaluation Scripts
+
+After installation, you can run the evaluation scripts:
+
+```bash
+# For TSTR (Train on Synthetic, Test on Real) evaluation
+python eval_tstr_final.py
+
+# For evaluation on real data
+python compare_models_real_data.py
+```
+
+The scripts will:
+1. Load datasets (from UCI repository or local files)
+2. Preprocess data for model compatibility
+3. Train and evaluate models
+4. Save results to CSV files in the 'results' directory
+5. Save network visualizations to the 'img' directory
 ```

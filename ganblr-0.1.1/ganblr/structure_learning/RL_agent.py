@@ -10,18 +10,18 @@ from warnings import simplefilter
 
 from pgmpy.models import BayesianNetwork
 
-# Only import what's actually used in the code
-try:
-    from pgmpy.metrics import log_likelihood_score
-except ImportError:
-    # Fallback if not available
-    def log_likelihood_score(model, data):
-        """Fallback implementation if not available in pgmpy"""
-        print("Warning: Using fallback log_likelihood_score function")
-        return 0
+from pgmpy.metrics import log_likelihood_score
+from pgmpy.estimators import (
+    AIC,
+    BDeu,
+    BDs,
+    BIC,
+    K2,
+    ScoreCache,
+    StructureEstimator,
+    StructureScore,
+)
 
-# Import BicScore which is actually used in the implementation
-from pgmpy.estimators import BicScore, ScoreCache
 
 simplefilter(action="ignore", category=FutureWarning)
 

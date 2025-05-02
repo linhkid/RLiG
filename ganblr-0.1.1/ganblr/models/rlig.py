@@ -10,7 +10,7 @@ from ..structure_learning.HillClimbing import HillClimbSearch
 from ..structure_learning.utils.buffer import StackBuffer
 from ..structure_learning.RL_agent import ReinforcementLearningAgent
 from ..structure_learning.K2_agent import K2Agent
-from pgmpy.models import BayesianNetwork
+from pgmpy.models import DiscreteBayesianNetwork as BayesianNetwork
 from pgmpy.sampling import BayesianModelSampling
 from pgmpy.factors.discrete import TabularCPD
 from sklearn.preprocessing import OrdinalEncoder, LabelEncoder
@@ -223,7 +223,8 @@ class RLiG:
             print(self.bayesian_network)
             model_graphviz = self.bayesian_network.to_graphviz()  # Testing code for graph init
             model_graphviz.draw(f"init.png", prog="dot")
-            original_score = structure_score(model=self.bayesian_network, data=self.data, scoring_method="bic")
+            original_score = structure_score(model=self.bayesian_network, data=self.data, scoring_method="bic-g")
+            print("score", original_score)
             self.best_score = original_score
 
             for epoch in range(epochs):
@@ -241,7 +242,7 @@ class RLiG:
                     next_bayesian.step(action=best_action)
                     next_bayesian.remove_cpds(*next_bayesian.get_cpds())
                     next_bayesian.fit(self.data)
-                    current_score = structure_score(model=next_bayesian, data=self.data, scoring_method="bic")
+                    current_score = structure_score(model=next_bayesian, data=self.data, scoring_method="bic-g")
 
                     # Calculate the Penalty Term
                     num_parameters = len(next_bayesian.get_cpds())
@@ -295,7 +296,7 @@ class RLiG:
                     ls = np.mean(-np.log(1))
 
                 current_score = structure_score(model=self.bayesian_network, data=self.data,
-                                                scoring_method="bic")  # NaN: Divide by zero error
+                                                scoring_method="bic-g")  # NaN: Divide by zero error
 
                 # Calculate the Penalty Term
                 num_parameters = len(self.bayesian_network.get_cpds())

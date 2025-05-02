@@ -156,13 +156,24 @@ cd ..
 
 ### Model Comparison
 
-To compare RLiG with baseline models (HillClimbSearch, TreeSearch, GaussianNB, NOTEARS):
+Two main evaluation scripts are provided:
 
-```bash
-python compare_models.py
-```
+1. **Real Data Evaluation**:
+   ```bash
+   python compare_models_real_data.py
+   ```
+   This script evaluates models by training and testing on real data.
 
-This will run experiments on sample datasets and output performance metrics including accuracy, BIC score, and training time.
+2. **TSTR (Train on Synthetic, Test on Real) Evaluation**:
+   ```bash
+   python eval_tstr_final.py
+   ```
+   This script implements the TSTR methodology for evaluating generative models:
+   - Trains generative models on real data
+   - Generates synthetic data from trained models
+   - Trains classification models on synthetic data
+   - Tests on real data
+   - Compares results across different models (RLiG, GANBLR, GANBLR++, CTGAN, NaiveBayes)
 
 ### Using the Interactive Notebook
 
@@ -182,7 +193,7 @@ The notebook provides:
 
 ### Running with Custom Datasets
 
-To run with your own datasets, modify the `datasets` dictionary in `compare_models.py`:
+To run with your own datasets, modify the `datasets` dictionary in either evaluation script:
 
 ```python
 datasets = {
@@ -206,8 +217,12 @@ datasets = {
   - `ganblr/models/rlig.py`: Main RLiG model implementation
   - `ganblr/structure_learning/`: Structure learning algorithms
 - `Baselines/`: Baseline methods for comparison
-- `compare_models.py`: Script for comparing RLiG with baselines
+- `compare_models_real_data.py`: Script for comparing models using real data
+- `eval_tstr_final.py`: Script for evaluating models using TSTR methodology
 - `model_comparison_guide.ipynb`: Interactive notebook for guided comparison
+- `img/`: Directory for storing network visualizations
+- `results/`: Directory for storing evaluation results
+- `train_data/`: Directory for storing training data CSV files
 
 ## Docker Setup
 
