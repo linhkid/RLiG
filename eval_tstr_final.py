@@ -507,7 +507,7 @@ def evaluate_tstr(synthetic_data, X_test, y_test, target_col='target'):
         
         # Get feature categories for one-hot encoding
         categories = [np.unique(np.concatenate([syn_X[col].unique(), X_test[col].unique()])) for col in X_test.columns]
-        
+
         for name, model in models.items():
             try:
                 print(f"Training {name} on synthetic data...")
