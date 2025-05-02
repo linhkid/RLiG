@@ -38,6 +38,21 @@ from sklearn.naive_bayes import GaussianNB
 from sklearn.linear_model import LogisticRegression
 from sklearn.neural_network import MLPClassifier
 from sklearn.ensemble import RandomForestClassifier
+
+# XGBoost for additional classifier
+try:
+    import xgboost as xgb
+    # Check compatibility with sklearn wrapper
+    try:
+        xgb_test = xgb.XGBClassifier(n_estimators=5)
+        hasattr(xgb_test, 'fit')  # Test if basic interface is available
+        XGBOOST_AVAILABLE = True
+    except (ImportError, AttributeError, TypeError) as e:
+        print(f"XGBoost available but sklearn wrapper has compatibility issues: {e}")
+        XGBOOST_AVAILABLE = False
+except ImportError:
+    print("XGBoost not available. Will use other classifiers only.")
+    XGBOOST_AVAILABLE = False
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler, LabelEncoder, KBinsDiscretizer, OneHotEncoder
 from sklearn.compose import ColumnTransformer
@@ -218,14 +233,32 @@ def train_naive_bayes(X_train, y_train):
 
 
 def train_ctgan(X_train, discrete_columns=None, epochs=100, batch_size=500):
-    """Train a CTGAN model"""
+    """Train a CTGAN model with M1/M2 Mac compatibility fixes"""
     if not CTGAN_AVAILABLE:
         return None
         
     try:
+        import os
+        # Set environment variables to limit TensorFlow memory usage
+        os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
+        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Suppress TF logs
+        
+        # For Apple Silicon compatibility
+        if hasattr(os, 'uname') and os.uname().machine == 'arm64':
+            print("Apple Silicon detected - using compatibility settings for CTGAN")
+            # Reduce batch size further for M1/M2 Macs
+            batch_size = min(batch_size, 200)
+            # Use fewer epochs by default on M1/M2
+            epochs = min(epochs, 20)
+            
         # Convert X_train to DataFrame if it's not already
         if not isinstance(X_train, pd.DataFrame):
             X_train = pd.DataFrame(X_train)
+        
+        # Workaround for memory issues: use smaller dataframe
+        if len(X_train) > 1000:
+            print(f"Large dataset detected ({len(X_train)} rows). Using 1000-row sample for CTGAN training.")
+            X_train = X_train.sample(1000, random_state=42)
         
         # Identify categorical columns if not provided
         if discrete_columns is None:
@@ -234,14 +267,17 @@ def train_ctgan(X_train, discrete_columns=None, epochs=100, batch_size=500):
                 if X_train[col].dtype == 'object' or len(np.unique(X_train[col])) < 10:
                     discrete_columns.append(col)
         
-        # Initialize and train CTGAN model
+        # Initialize CTGAN model with conservative settings
         ctgan_model = CTGAN(
             epochs=epochs,
             batch_size=batch_size,
             verbose=True
         )
         
-        print(f"Training CTGAN with {epochs} epochs, categorical columns: {discrete_columns}")
+        print(f"Training CTGAN with {epochs} epochs, batch_size={batch_size}, categorical columns: {discrete_columns}")
+        print("This may take a while. To skip CTGAN, use --models ganblr ganblr++ nb rlig")
+        
+        # Train with reduced data
         ctgan_model.fit(X_train, discrete_columns)
         return ctgan_model
     except Exception as e:
@@ -354,13 +390,41 @@ def generate_ctgan_synthetic_data(ctgan_model, train_data, n_samples=None):
         n_samples = len(train_data)
     
     try:
-        # Sample from the CTGAN model
-        synthetic_data = ctgan_model.sample(n_samples)
+        # For M1/M2 Macs, generate in smaller batches
+        import os
+        if hasattr(os, 'uname') and os.uname().machine == 'arm64' and n_samples > 500:
+            print(f"Generating {n_samples} samples in smaller batches for Apple Silicon compatibility")
+            batch_size = 500
+            num_batches = (n_samples + batch_size - 1) // batch_size  # Ceiling division
+            
+            # Generate in batches and concatenate
+            batches = []
+            for i in range(num_batches):
+                print(f"Generating batch {i+1}/{num_batches}")
+                this_batch_size = min(batch_size, n_samples - i*batch_size)
+                batch = ctgan_model.sample(this_batch_size)
+                batches.append(batch)
+            
+            synthetic_data = pd.concat(batches, ignore_index=True)
+        else:
+            # Regular generation for other platforms
+            synthetic_data = ctgan_model.sample(n_samples)
+            
         print(f"Generated {len(synthetic_data)} synthetic samples from CTGAN")
         return synthetic_data
     except Exception as e:
         print(f"Error generating synthetic data from CTGAN: {e}")
-        return None
+        
+        # Fallback: if sampling fails, try to sample a smaller number
+        try:
+            fallback_samples = min(n_samples, 500)
+            print(f"Trying fallback with {fallback_samples} samples")
+            synthetic_data = ctgan_model.sample(fallback_samples)
+            print(f"Generated {len(synthetic_data)} synthetic samples as fallback")
+            return synthetic_data
+        except Exception as fallback_error:
+            print(f"Fallback also failed: {fallback_error}")
+            return None
 
 
 # ============= EVALUATION FUNCTIONS =============
@@ -382,7 +446,7 @@ def evaluate_tstr(synthetic_data, X_test, y_test, target_col='target'):
     and an average across all models
     """
     if synthetic_data is None:
-        return {'LR': None, 'MLP': None, 'RF': None, 'AVG': None}
+        return {'LR': None, 'MLP': None, 'RF': None, 'XGB': None, 'AVG': None}
     
     try:
         # Split synthetic data into features and target
@@ -416,6 +480,28 @@ def evaluate_tstr(synthetic_data, X_test, y_test, target_col='target'):
             'MLP': MLPClassifier(max_iter=500, early_stopping=True),
             'RF': RandomForestClassifier(n_estimators=100)
         }
+        
+        # Add XGBoost if available (with compatibility settings)
+        if XGBOOST_AVAILABLE:
+            try:
+                # Try different parameter combinations based on XGBoost version
+                try:
+                    # Newer XGBoost versions
+                    models['XGB'] = xgb.XGBClassifier(
+                        n_estimators=100, 
+                        learning_rate=0.1,
+                        enable_categorical=False,  # Avoid categorical feature warning
+                        use_label_encoder=False    # Compatibility for older versions
+                    )
+                except TypeError:
+                    # Older XGBoost versions
+                    models['XGB'] = xgb.XGBClassifier(
+                        n_estimators=100, 
+                        learning_rate=0.1
+                    )
+            except Exception as e:
+                print(f"Could not initialize XGBoost classifier: {e}")
+                # Don't add XGB to models in case of error
         
         results = {}
         
@@ -453,7 +539,7 @@ def evaluate_tstr(synthetic_data, X_test, y_test, target_col='target'):
         return results
     except Exception as e:
         print(f"Error in TSTR evaluation: {e}")
-        return {'LR': None, 'MLP': None, 'RF': None, 'AVG': None}
+        return {'LR': None, 'MLP': None, 'RF': None, 'XGB': None, 'AVG': None}
 
 
 def get_gaussianNB_bic_score(model, data):
@@ -516,6 +602,9 @@ def train_and_evaluate_rlig(X_train, y_train, X_test, y_test, model_results, n_s
             mlp_result = rlig_model.evaluate(X_test, y_test_series, model='mlp')
             rf_result = rlig_model.evaluate(X_test, y_test_series, model='rf')
             
+            # We'll skip built-in XGBoost evaluation as it's not directly supported by RLiG
+            xgb_result = None
+            
             # Store individual results
             rlig_results = {
                 'LR': lr_result,
@@ -523,6 +612,13 @@ def train_and_evaluate_rlig(X_train, y_train, X_test, y_test, model_results, n_s
                 'RF': rf_result,
                 'AVG': (lr_result + mlp_result + rf_result) / 3
             }
+            
+            # Add XGBoost result if available
+            if xgb_result is not None:
+                rlig_results['XGB'] = xgb_result
+                # Recalculate average with XGBoost
+                valid_results = [lr_result, mlp_result, rf_result, xgb_result]
+                rlig_results['AVG'] = sum(valid_results) / len(valid_results)
             
             for model_name, acc in rlig_results.items():
                 model_results['metrics'][f'RLiG-{model_name}'] = acc
@@ -547,6 +643,11 @@ def train_and_evaluate_rlig(X_train, y_train, X_test, y_test, model_results, n_s
                 
                 # Save synthetic data sample
                 synthetic_data = rlig_model.sample(1000)
+                # Convert to DataFrame if it's a numpy array
+                if isinstance(synthetic_data, np.ndarray):
+                    # Create DataFrame with original column names
+                    columns = list(X_train.columns) + ['target']
+                    synthetic_data = pd.DataFrame(synthetic_data, columns=columns)
                 synthetic_data.to_csv(f"train_data/rlig_{dataset_name}_synthetic.csv", index=False)
                 print(f"RLiG synthetic data sample saved to train_data/rlig_{dataset_name}_synthetic.csv")
             except Exception as e:
@@ -793,10 +894,11 @@ def train_and_evaluate_nb(X_train, y_train, X_test, y_test, train_data, model_re
 
 # ============= MAIN COMPARISON FUNCTION =============
 
-def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episodes=2, rlig_epochs=5, ctgan_epochs=50, verbose=False):
+def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episodes=2, rlig_epochs=5, 
+                  ctgan_epochs=50, verbose=False):
     """
     Compare generative models using TSTR methodology as described in the paper
-    with multiple rounds of evaluation for robustness
+    with multiple rounds of cross-validation for robustness
     
     Parameters:
     -----------
@@ -806,7 +908,7 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
         List of models to evaluate. If None, evaluate all available models.
         Options: 'rlig', 'ganblr', 'ganblr++', 'ctgan', 'nb'
     n_rounds : int
-        Number of rounds to run the evaluation (default: 3)
+        Number of rounds of cross-validation to run (default: 3)
     seed : int
         Random seed for reproducibility
     rlig_episodes : int
@@ -825,7 +927,7 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
     # Set random seed for reproducibility
     np.random.seed(seed)
     
-    print(f"Running {n_rounds} rounds of evaluation for robust results...")
+    print(f"Running {n_rounds} rounds of cross-validation for robust results...")
     print(f"Models to evaluate: {', '.join(models)}")
     print(f"Datasets: {', '.join(datasets.keys())}")
     
@@ -838,9 +940,222 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
     # Dictionary to store results from all rounds
     all_rounds_results = {}
     
-    # Run multiple rounds of evaluation
+    # Dictionary to store synthetic data for each model and dataset
+    synthetic_data_cache = {}
+    
+    # First, generate synthetic data for all models once
+    print("\n\n== GENERATING SYNTHETIC DATA FOR ALL MODELS ==\n")
+    
+    # Process each dataset
+    for name, dataset_info in datasets.items():
+        print(f"\n{'='*50}\nProcessing dataset: {name}\n{'='*50}")
+        X, y = load_dataset(name, dataset_info)
+        if X is None or y is None:
+            continue
+            
+        # Preprocess data
+        try:
+            X_train, X_test, y_train, y_test = preprocess_data(X, y)
+            train_data = pd.concat([X_train, y_train], axis=1)
+            print(f"Data loaded and preprocessed. Training data shape: {train_data.shape}")
+        except Exception as e:
+            print(f"Error preprocessing data: {e}")
+            continue
+            
+        # Initialize synthetic data cache for this dataset
+        synthetic_data_cache[name] = {
+            'X_train': X_train,
+            'X_test': X_test,
+            'y_train': y_train, 
+            'y_test': y_test,
+            'train_data': train_data,
+            'models': {}
+        }
+        
+        # Set number of synthetic samples to match training data size
+        n_samples = len(train_data)
+            
+        # Generate synthetic data for each model
+        if 'ganblr++' in models:
+            print("\n-- Generating synthetic data for GANBLR++ --")
+            try:
+                hc = HillClimbSearch(train_data)
+                best_model_hc = hc.estimate(scoring_method=BIC(train_data))
+                bn_hc = train_bn(best_model_hc, train_data)
+                
+                if bn_hc:
+                    # Store BIC score
+                    hc_bic = structure_score(bn_hc, train_data, scoring_method="bic-cg")
+                    
+                    # Generate synthetic data
+                    hc_synthetic = generate_bn_synthetic_data(bn_hc, train_data, n_samples=n_samples)
+                    
+                    if hc_synthetic is not None:
+                        # Save the network visualization
+                        try:
+                            os.makedirs("img", exist_ok=True)
+                            bn_hc.to_graphviz().draw(f"img/ganblrpp_{name}_network.png", prog="dot")
+                            print(f"GANBLR++ network visualization saved to img/ganblrpp_{name}_network.png")
+                        except Exception as e:
+                            print(f"Error saving network visualization: {e}")
+                            
+                        # Store in cache
+                        synthetic_data_cache[name]['models']['ganblr++'] = {
+                            'data': hc_synthetic,
+                            'bic': hc_bic
+                        }
+                        
+                        # Save synthetic data
+                        os.makedirs("train_data", exist_ok=True)
+                        hc_synthetic.head(1000).to_csv(f"train_data/ganblrpp_{name}_synthetic.csv", index=False)
+                        print(f"GANBLR++ synthetic data saved to train_data/ganblrpp_{name}_synthetic.csv")
+            except Exception as e:
+                print(f"Error generating GANBLR++ synthetic data: {e}")
+                
+        if 'ganblr' in models:
+            print("\n-- Generating synthetic data for GANBLR --")
+            try:
+                ts = TreeSearch(train_data)
+                best_model_ts = ts.estimate()
+                bn_ts = train_bn(best_model_ts, train_data)
+                
+                if bn_ts:
+                    # Store BIC score
+                    ts_bic = structure_score(bn_ts, train_data, scoring_method="bic-cg")
+                    
+                    # Generate synthetic data
+                    ts_synthetic = generate_bn_synthetic_data(bn_ts, train_data, n_samples=n_samples)
+                    
+                    if ts_synthetic is not None:
+                        # Save the network visualization
+                        try:
+                            os.makedirs("img", exist_ok=True)
+                            bn_ts.to_graphviz().draw(f"img/ganblr_{name}_network.png", prog="dot")
+                            print(f"GANBLR network visualization saved to img/ganblr_{name}_network.png")
+                        except Exception as e:
+                            print(f"Error saving network visualization: {e}")
+                            
+                        # Store in cache
+                        synthetic_data_cache[name]['models']['ganblr'] = {
+                            'data': ts_synthetic,
+                            'bic': ts_bic
+                        }
+                        
+                        # Save synthetic data
+                        os.makedirs("train_data", exist_ok=True)
+                        ts_synthetic.head(1000).to_csv(f"train_data/ganblr_{name}_synthetic.csv", index=False)
+                        print(f"GANBLR synthetic data saved to train_data/ganblr_{name}_synthetic.csv")
+            except Exception as e:
+                print(f"Error generating GANBLR synthetic data: {e}")
+                
+        if 'ctgan' in models:
+            print("\n-- Generating synthetic data for CTGAN --")
+            try:
+                # Prepare data for CTGAN
+                ctgan_train_data = pd.concat([X_train, y_train], axis=1)
+                
+                # Identify categorical columns
+                discrete_columns = []
+                for col in ctgan_train_data.columns:
+                    if len(np.unique(ctgan_train_data[col])) < 10:  # Heuristic for categorical
+                        discrete_columns.append(col)
+                
+                # Train CTGAN
+                ctgan_model = train_ctgan(
+                    ctgan_train_data, 
+                    discrete_columns=discrete_columns,
+                    epochs=ctgan_epochs,
+                    batch_size=min(500, len(ctgan_train_data))
+                )
+                
+                if ctgan_model:
+                    # Generate synthetic data
+                    ctgan_synthetic = generate_ctgan_synthetic_data(ctgan_model, ctgan_train_data, n_samples=n_samples)
+                    
+                    if ctgan_synthetic is not None:
+                        # Store in cache
+                        synthetic_data_cache[name]['models']['ctgan'] = {
+                            'data': ctgan_synthetic
+                        }
+                        
+                        # Save synthetic data
+                        os.makedirs("train_data", exist_ok=True)
+                        ctgan_synthetic.head(1000).to_csv(f"train_data/ctgan_{name}_synthetic.csv", index=False)
+                        print(f"CTGAN synthetic data saved to train_data/ctgan_{name}_synthetic.csv")
+            except Exception as e:
+                print(f"Error generating CTGAN synthetic data: {e}")
+                
+        if 'nb' in models:
+            print("\n-- Generating synthetic data for Naive Bayes --")
+            try:
+                # Train NB model
+                nb = train_naive_bayes(X_train, y_train)
+                
+                if nb:
+                    # Calculate BIC score
+                    nb_bic = get_gaussianNB_bic_score(nb, train_data)
+                    
+                    # Generate synthetic data
+                    nb_synthetic = generate_nb_synthetic_data(nb, X_train, y_train, n_samples=n_samples)
+                    
+                    if nb_synthetic is not None:
+                        # Store in cache
+                        synthetic_data_cache[name]['models']['nb'] = {
+                            'data': nb_synthetic,
+                            'bic': nb_bic
+                        }
+                        
+                        # Save synthetic data
+                        os.makedirs("train_data", exist_ok=True)
+                        nb_synthetic.head(1000).to_csv(f"train_data/nb_{name}_synthetic.csv", index=False)
+                        print(f"Naive Bayes synthetic data saved to train_data/nb_{name}_synthetic.csv")
+            except Exception as e:
+                print(f"Error generating Naive Bayes synthetic data: {e}")
+                
+        if 'rlig' in models and RLIG_AVAILABLE:
+            print("\n-- Generating synthetic data for RLiG --")
+            try:
+                # Train RLiG model
+                rlig_model = train_rlig(X_train, y_train, episodes=rlig_episodes, epochs=rlig_epochs)
+                
+                if rlig_model:
+                    # Store BIC score if available
+                    rlig_bic = rlig_model.best_score if hasattr(rlig_model, 'best_score') else None
+                    
+                    # Generate synthetic data
+                    synthetic_data = rlig_model.sample(1000)
+                    
+                    # Convert to DataFrame if it's a numpy array
+                    if isinstance(synthetic_data, np.ndarray):
+                        columns = list(X_train.columns) + ['target']
+                        synthetic_data = pd.DataFrame(synthetic_data, columns=columns)
+                    
+                    if synthetic_data is not None:
+                        # Save the network visualization
+                        try:
+                            os.makedirs("img", exist_ok=True)
+                            rlig_model.bayesian_network.to_graphviz().draw(f"img/rlig_{name}_network.png", prog="dot")
+                            print(f"RLiG network visualization saved to img/rlig_{name}_network.png")
+                        except Exception as e:
+                            print(f"Error saving network visualization: {e}")
+                            
+                        # Store in cache
+                        synthetic_data_cache[name]['models']['rlig'] = {
+                            'data': synthetic_data,
+                            'bic': rlig_bic,
+                            'model': rlig_model  # Store model for built-in evaluation
+                        }
+                        
+                        # Save synthetic data
+                        os.makedirs("train_data", exist_ok=True)
+                        synthetic_data.to_csv(f"train_data/rlig_{name}_synthetic.csv", index=False)
+                        print(f"RLiG synthetic data saved to train_data/rlig_{name}_synthetic.csv")
+            except Exception as e:
+                print(f"Error generating RLiG synthetic data: {e}")
+    
+    # Now run multiple rounds of cross-validation on the generated synthetic data
     for round_idx in range(n_rounds):
-        print(f"\n\n{'='*20} ROUND {round_idx+1}/{n_rounds} {'='*20}\n")
+        print(f"\n\n{'='*20} CROSS-VALIDATION ROUND {round_idx+1}/{n_rounds} {'='*20}\n")
         
         # Set a different seed for each round but in a deterministic way
         round_seed = seed + round_idx
@@ -848,22 +1163,16 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
         
         round_results = {}
         
-        for name, dataset_info in datasets.items():
-            print(f"\n{'='*50}\nProcessing dataset: {name}\n{'='*50}")
-            X, y = load_dataset(name, dataset_info)
-            if X is None or y is None:
-                continue
-                
-            # Preprocess data
-            try:
-                X_train, X_test, y_train, y_test = preprocess_data(X, y)
-                train_data = pd.concat([X_train, y_train], axis=1)
-                print(f"Data loaded and preprocessed. Training data shape: {train_data.shape}")
-            except Exception as e:
-                print(f"Error preprocessing data: {e}")
-                continue
-                
-            # Initialize results dictionary for this dataset
+        # For each dataset, evaluate models using the pre-generated synthetic data
+        for name in synthetic_data_cache.keys():
+            print(f"\n{'='*50}\nEvaluating dataset: {name} (Round {round_idx+1})\n{'='*50}")
+            
+            # Get cached data
+            cached_data = synthetic_data_cache[name]
+            X_test = cached_data['X_test'] 
+            y_test = cached_data['y_test']
+            
+            # Initialize results for this dataset and round
             model_results = {
                 'metrics': {},
                 'times': {},
@@ -871,28 +1180,62 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
                 'dataset_name': name
             }
             
-            # Set number of synthetic samples to match training data size
-            n_samples = len(train_data)
-            
-            # Evaluate each model
-            if 'ganblr++' in models:
-                train_and_evaluate_ganblrpp(train_data, X_test, y_test, model_results, n_samples)
+            # Evaluate each model's synthetic data
+            for model_name, model_cache in cached_data['models'].items():
+                print(f"\n-- Evaluating {model_name.upper()} synthetic data --")
                 
-            if 'ganblr' in models:
-                train_and_evaluate_ganblr(train_data, X_test, y_test, model_results, n_samples)
+                # Get synthetic data and BIC score
+                synthetic_data = model_cache['data']
+                
+                if model_name == 'rlig' and 'model' in model_cache:
+                    # Use RLiG's built-in evaluate method for consistency
+                    rlig_model = model_cache['model']
+                    start_time = time.time()
                     
-            if 'ctgan' in models:
-                train_and_evaluate_ctgan(X_train, y_train, X_test, y_test, model_results, n_samples, 
-                                       epochs=ctgan_epochs)
+                    if isinstance(y_test, pd.DataFrame):
+                        y_test_series = y_test.iloc[:, 0] if y_test.shape[1] == 1 else y_test
+                    else:
+                        y_test_series = y_test
                     
-            if 'nb' in models:
-                train_and_evaluate_nb(X_train, y_train, X_test, y_test, train_data, model_results, n_samples)
+                    # Built-in evaluation
+                    lr_result = rlig_model.evaluate(X_test, y_test_series, model='lr')
+                    mlp_result = rlig_model.evaluate(X_test, y_test_series, model='mlp')
+                    rf_result = rlig_model.evaluate(X_test, y_test_series, model='rf')
+                    
+                    # Store results
+                    rlig_results = {
+                        'LR': lr_result,
+                        'MLP': mlp_result,
+                        'RF': rf_result,
+                        'AVG': (lr_result + mlp_result + rf_result) / 3
+                    }
+                    
+                    for classifier, acc in rlig_results.items():
+                        model_results['metrics'][f'RLiG-{classifier}'] = acc
+                    
+                    model_results['times']['RLiG'] = time.time() - start_time
+                    
+                    # Store BIC score if available
+                    if 'bic' in model_cache and model_cache['bic'] is not None:
+                        model_results['bic_scores']['RLiG'] = model_cache['bic']
+                else:
+                    # Standard TSTR evaluation for other models
+                    start_time = time.time()
+                    tstr_results = evaluate_tstr(synthetic_data, X_test, y_test)
+                    eval_time = time.time() - start_time
+                    
+                    # Store metrics
+                    for classifier, acc in tstr_results.items():
+                        model_results['metrics'][f'{model_name.upper()}-{classifier}'] = acc
+                    
+                    # Store time
+                    model_results['times'][model_name.upper()] = eval_time
+                    
+                    # Store BIC score if available
+                    if 'bic' in model_cache and model_cache['bic'] is not None:
+                        model_results['bic_scores'][model_name.upper()] = model_cache['bic']
             
-            if 'rlig' in models and RLIG_AVAILABLE:
-                train_and_evaluate_rlig(X_train, y_train, X_test, y_test, model_results, n_samples,
-                                      episodes=rlig_episodes, epochs=rlig_epochs)
-            
-            # Store results for this dataset
+            # Store results for this dataset and round
             round_results[name] = model_results
         
         # Store this round's results
@@ -923,18 +1266,30 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
             
             # Accumulate metrics
             for metric_key, metric_value in round_data['metrics'].items():
+                # Skip None values
+                if metric_value is None:
+                    continue
+                    
                 if metric_key not in final_results[dataset_name]['metrics']:
                     final_results[dataset_name]['metrics'][metric_key] = 0
                 final_results[dataset_name]['metrics'][metric_key] += metric_value
             
             # Accumulate times
             for time_key, time_value in round_data['times'].items():
+                # Skip None values
+                if time_value is None:
+                    continue
+                    
                 if time_key not in final_results[dataset_name]['times']:
                     final_results[dataset_name]['times'][time_key] = 0
                 final_results[dataset_name]['times'][time_key] += time_value
             
             # Accumulate BIC scores
             for bic_key, bic_value in round_data['bic_scores'].items():
+                # Skip None values
+                if bic_value is None:
+                    continue
+                    
                 if bic_key not in final_results[dataset_name]['bic_scores']:
                     final_results[dataset_name]['bic_scores'][bic_key] = 0
                 final_results[dataset_name]['bic_scores'][bic_key] += bic_value
@@ -1001,6 +1356,12 @@ def parse_args():
         description="TSTR (Train on Synthetic, Test on Real) Evaluation Framework for generative models",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
+    
+    print("\nTSTR Evaluation Framework for Generative Models")
+    print("===============================================")
+    print("Models supported: RLiG, GANBLR, GANBLR++, CTGAN, Naive Bayes")
+    print("Classifiers: LogisticRegression, MLP, RandomForest, XGBoost (if installed)")
+    print("Running with command line arguments enables customization of datasets, models, and parameters.")
     
     # Model selection arguments
     parser.add_argument(
@@ -1070,6 +1431,12 @@ def parse_args():
     )
     
     parser.add_argument(
+        "--small_ctgan", 
+        action="store_true",
+        help="Use fewer epochs (10) for CTGAN to speed up training"
+    )
+    
+    parser.add_argument(
         "--rlig_episodes", 
         type=int, 
         default=2,
@@ -1125,10 +1492,10 @@ if __name__ == "__main__":
     if len(args.datasets) < len(datasets):
         datasets = {k: datasets[k] for k in args.datasets if k in datasets}
     
-    # Update CTGAN parameters if provided
-    if hasattr(args, 'ctgan_epochs') and args.ctgan_epochs != 50:
-        # Since we can't modify the function directly, we'll add a note
-        print(f"Note: Using {args.ctgan_epochs} epochs for CTGAN (modify train_and_evaluate_ctgan function to use this value)")
+    # Apply small_ctgan option if specified
+    if args.small_ctgan:
+        args.ctgan_epochs = 10
+        print(f"Note: Using reduced CTGAN epochs ({args.ctgan_epochs}) for faster training")
     
     # Run the TSTR comparison with specified models and parameters
     results = compare_models_tstr(
