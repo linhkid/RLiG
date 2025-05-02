@@ -92,20 +92,50 @@ The final learned structure is used to initialize a GANBLR model where:
 
 ## Getting Started
 
-### Prerequisites
+### Quick Start (Recommended)
 
-RLiG requires Python 3.8+ and several dependencies. We recommend using a conda environment for installation:
+For team members who want to get started quickly with the fewest compatibility issues:
 
 ```bash
-# Create a conda environment with Python 3.8
+# 1. Create a conda environment with Python 3.8
 conda create -n rlig python=3.8 -y
+conda activate rlig
+
+# 2. Install core dependencies
+pip install numpy pandas matplotlib tqdm
+
+# 3. Install exact versions for compatibility
+pip install scikit-learn==0.24.0
+pip install tensorflow==2.6.2
+pip install pgmpy==0.1.25
+pip install causalnex==0.11.0 
+pip install ucimlrepo  # For baseline comparisons
+
+# 4. Install RLiG package
+cd ganblr-0.1.1
+pip install -e .
+cd ..
+
+# 5. Test installation
+python -c "from ganblr.models import RLiG; print('RLiG successfully imported!')"
+```
+
+### Prerequisites (Alternative)
+
+RLiG can also work with newer dependency versions, but might require some adjustments:
+
+```bash
+# Create a conda environment with Python 3.8+
+conda create -n rlig python=3.11 -y
 conda activate rlig
 
 # Install dependencies
 pip install numpy pandas scikit-learn tqdm matplotlib pgmpy
-pip install tensorflow==2.6.2  # Specific version required
+pip install tensorflow  # Latest version
 pip install causalnex ucimlrepo  # For baseline comparisons
 ```
+
+Note: If you use newer versions and encounter import errors, see the troubleshooting section in INSTALL.md.
 
 ### Installation
 

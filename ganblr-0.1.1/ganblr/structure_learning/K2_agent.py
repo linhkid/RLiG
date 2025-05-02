@@ -10,6 +10,7 @@ from .utils.buffer import ReplayBuffer
 from warnings import simplefilter
 
 from pgmpy.models import BayesianNetwork
+
 from pgmpy.metrics import log_likelihood_score
 from pgmpy.estimators import (
     AIC,
@@ -21,6 +22,7 @@ from pgmpy.estimators import (
     StructureEstimator,
     StructureScore,
 )
+
 
 from sklearn.metrics import mutual_info_score
 

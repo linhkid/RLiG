@@ -155,6 +155,26 @@ pip install tensorflow==2.6.2
 pip install pgmpy==0.1.25
 ```
 
+### pgmpy API Compatibility Issues
+The codebase was originally designed for pgmpy 0.1.25, but newer versions have API changes that cause import errors. If you encounter errors like:
+
+```
+ImportError: cannot import name 'config' from 'pgmpy'
+ImportError: cannot import name 'AICScore' from 'pgmpy.estimators'
+```
+
+You have two options:
+
+1. Install the specific version of pgmpy:
+```bash
+pip install pgmpy==0.1.25
+```
+
+2. Use our compatibility fixes which handle the API differences between versions.
+   - The code has been updated to import only available modules
+   - Fallback implementations are provided for missing components
+   - Warnings will be displayed when using fallbacks
+
 ### TensorFlow GPU issues
 If you're having trouble with TensorFlow GPU support:
 1. Ensure you have the correct CUDA and cuDNN versions installed

@@ -5,6 +5,7 @@ from itertools import permutations
 import networkx as nx
 from tqdm.auto import trange
 
+
 from pgmpy.models import BayesianNetwork
 from pgmpy.estimators import (
     AIC,
@@ -16,6 +17,7 @@ from pgmpy.estimators import (
     StructureEstimator,
     StructureScore,
 )
+
 
 
 class HillClimbSearch(StructureEstimator):
