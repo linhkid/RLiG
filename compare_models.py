@@ -293,7 +293,9 @@ def compare_models(datasets):
             X_train, X_test, y_train, y_test = preprocess_data(X, y)
             train_data = pd.concat([X_train, y_train], axis=1)
             train_data.to_csv(f"{name}_train_data.csv")
-            print(f"Data loaded and preprocessed. Training data shape: {train_data.shape}")
+            print(f"Data loaded and preprocessed. "
+                  f"Total number of data: {X.shape}. "
+                  f"Training data shape: {train_data.shape}")
         except Exception as e:
             print(f"Error preprocessing data: {e}")
             continue
