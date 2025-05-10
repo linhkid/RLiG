@@ -100,10 +100,17 @@ except ImportError:
     GREAT_AVAILABLE = False
 
 try:
+    # Add tabsyn directory to Python path so imports work
+    import sys
+    import os
+    tabsyn_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tabsyn')
+    if tabsyn_path not in sys.path:
+        sys.path.append(tabsyn_path)
+    
     from tabsyn.tabular_gan import TabularGAN
     TABSYN_AVAILABLE = True
-except ImportError:
-    print("TabSyn is not available. Will be skipped.")
+except ImportError as e:
+    print(f"TabSyn is not available. Will be skipped. Error: {e}")
     TABSYN_AVAILABLE = False
 
 
