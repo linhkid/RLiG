@@ -19,6 +19,7 @@ The TSTR methodology:
 
 import os
 import gc
+import torch
 import time
 import warnings
 import logging
@@ -93,11 +94,18 @@ except ImportError:
     UCI_AVAILABLE = False
 
 try:
-    from be_great.be_great import GReaT
+    from be_great import GReaT
     GREAT_AVAILABLE = True
 except ImportError:
     print("GReaT is not available. Will be skipped.")
     GREAT_AVAILABLE = False
+
+try:
+    from tabsyn.tabular_gan import TabularGAN
+    TABSYN_AVAILABLE = True
+except ImportError:
+    print("TabSyn is not available. Will be skipped.")
+    TABSYN_AVAILABLE = False
 
 
 # ============= DATA HANDLING FUNCTIONS =============
@@ -324,9 +332,16 @@ def train_great(X_train, y_train, epochs=1):
 
     try:
         # Initiallize and train GReaT model
-        great_model = GReaT(llm='unsloth/Llama-3.2-1B', batch_size=2,  epochs=epochs,
-                            metric_for_best_model="accuracy")
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        print(f"CUDA available: {torch.cuda.is_available()}. Using device: {device}")
 
+        # #only use this if use non MPS
+        # great_model = GReaT(llm='distilgpt2', batch_size=32, epochs=50, fp16=True,
+        #                     metric_for_best_model="accuracy")
+
+        #otherwise for Mac, use this
+        great_model = GReaT(llm='unsloth/Llama-3.2-1B', batch_size=2, epochs=epochs,
+                            metric_for_best_model="accuracy")
         # Ensure the data is properly formatted
         if isinstance(y_train, pd.DataFrame):
             y_series = y_train.iloc[:, 0] if y_train.shape[1] == 1 else y_train
@@ -338,6 +353,42 @@ def train_great(X_train, y_train, epochs=1):
         return great_model
     except Exception as e:
         print(f"Error training GReaT model: {e}")
+        return None
+
+
+def train_tabsyn(X_train, y_train, epochs=50):
+    """Train the TabSyn tabular data synthesizer from Amazon Science
+    
+    TabSyn is a tabular data synthesis method that uses a GAN architecture
+    with a pre-trained transformer encoder and a distribution-aware decoder.
+    """
+    if not TABSYN_AVAILABLE:
+        return None
+        
+    try:
+        # Prepare data for TabSyn (we need to combine X and y)
+        combined_data = pd.concat([X_train, y_train], axis=1)
+        
+        # Identify categorical columns
+        categorical_cols = []
+        for col in combined_data.columns:
+            if len(np.unique(combined_data[col])) < 10:  # Heuristic for categorical columns
+                categorical_cols.append(col)
+        
+        # Initialize TabularGAN with conservative settings
+        print(f"Training TabSyn with {epochs} epochs")
+        tabsyn_model = TabularGAN(
+            train_data=combined_data,
+            categorical_columns=categorical_cols,
+            epochs=epochs,
+            verbose=True
+        )
+        
+        # Train the model
+        tabsyn_model.fit()
+        return tabsyn_model
+    except Exception as e:
+        print(f"Error training TabSyn model: {e}")
         return None
 
 
@@ -502,6 +553,52 @@ def generate_great_synthetic_data(great_model, train_data, n_samples=None):
             print(f"Trying fallback with {fallback_samples} samples")
             device = "cuda" if torch.cuda.is_available() else "cpu"
             synthetic_data = great_model.sample(fallback_samples, device=device)
+            print(f"Generated {len(synthetic_data)} synthetic samples as fallback")
+            return synthetic_data
+        except Exception as fallback_error:
+            print(f"Fallback also failed: {fallback_error}")
+            return None
+
+
+def generate_tabsyn_synthetic_data(tabsyn_model, train_data, n_samples=None):
+    """Generate synthetic data from TabSyn model"""
+    if not TABSYN_AVAILABLE or tabsyn_model is None:
+        return None
+
+    if n_samples is None:
+        n_samples = len(train_data)
+
+    try:
+        # For M1/M2 Macs, generate in smaller batches for memory management
+        import os
+        if hasattr(os, 'uname') and os.uname().machine == 'arm64' and n_samples > 500:
+            print(f"Generating {n_samples} samples in smaller batches for Apple Silicon compatibility")
+            batch_size = 500
+            num_batches = (n_samples + batch_size - 1) // batch_size  # Ceiling division
+            
+            # Generate in batches and concatenate
+            batches = []
+            for i in range(num_batches):
+                print(f"Generating batch {i+1}/{num_batches}")
+                this_batch_size = min(batch_size, n_samples - i*batch_size)
+                batch = tabsyn_model.sample(this_batch_size)
+                batches.append(batch)
+                
+            synthetic_data = pd.concat(batches, ignore_index=True)
+        else:
+            # Regular generation for other platforms
+            synthetic_data = tabsyn_model.sample(n_samples)
+            
+        print(f"Generated {len(synthetic_data)} synthetic samples from TabSyn")
+        return synthetic_data
+    except Exception as e:
+        print(f"Error generating synthetic data from TabSyn: {e}")
+        
+        # Fallback: if sampling fails, try to sample a smaller number
+        try:
+            fallback_samples = min(n_samples, 500)
+            print(f"Trying fallback with {fallback_samples} samples")
+            synthetic_data = tabsyn_model.sample(fallback_samples)
             print(f"Generated {len(synthetic_data)} synthetic samples as fallback")
             return synthetic_data
         except Exception as fallback_error:
@@ -977,7 +1074,7 @@ def train_and_evaluate_nb(X_train, y_train, X_test, y_test, train_data, model_re
 # ============= MAIN COMPARISON FUNCTION =============
 
 def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episodes=2, rlig_epochs=5, 
-                  ctgan_epochs=50, great_epochs=5, verbose=False):
+                  ctgan_epochs=50, great_epochs=5, tabsyn_epochs=50, verbose=False):
     """
     Compare generative models using TSTR methodology as described in the paper
     with multiple rounds of cross-validation for robustness
@@ -988,7 +1085,7 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
         Dictionary mapping dataset names to dataset sources
     models : list or None
         List of models to evaluate. If None, evaluate all available models.
-        Options: 'rlig', 'ganblr', 'ganblr++', 'ctgan', 'nb', 'great'
+        Options: 'rlig', 'ganblr', 'ganblr++', 'ctgan', 'nb', 'great', 'tabsyn'
     n_rounds : int
         Number of rounds of cross-validation to run (default: 3)
     seed : int
@@ -999,12 +1096,16 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
         Number of epochs for RLiG training
     ctgan_epochs : int
         Number of epochs for CTGAN training
+    great_epochs : int
+        Number of epochs for GReaT training
+    tabsyn_epochs : int
+        Number of epochs for TabSyn training
     verbose : bool
         Whether to print verbose output
     """
     # Default models to evaluate
     if models is None:
-        models = ['rlig', 'ganblr', 'ganblr++', 'ctgan', 'nb', 'great']
+        models = ['rlig', 'ganblr', 'ganblr++', 'ctgan', 'nb', 'great', 'tabsyn']
     
     # Set random seed for reproducibility
     np.random.seed(seed)
@@ -1019,6 +1120,7 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
         print(f"  - RLiG epochs: {rlig_epochs}")
         print(f"  - CTGAN epochs: {ctgan_epochs}")
         print(f"  - GReaT epochs: {great_epochs}")
+        print(f"  - TabSyn epochs: {tabsyn_epochs}")
     
     # Dictionary to store results from all rounds
     all_rounds_results = {}
@@ -1267,6 +1369,29 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
                         print(f"GReaT synthetic data saved to train_data/great_{name}_synthetic.csv")
             except Exception as e:
                 print(f"Error generating GReaT synthetic data: {e}")
+                
+        if 'tabsyn' in models and TABSYN_AVAILABLE:
+            print("\n-- Generating synthetic data for TabSyn --")
+            try:
+                # Train TabSyn model
+                tabsyn_model = train_tabsyn(X_train, y_train, epochs=tabsyn_epochs)
+                
+                if tabsyn_model:
+                    # Generate synthetic data
+                    tabsyn_synthetic = generate_tabsyn_synthetic_data(tabsyn_model, train_data, n_samples=n_samples)
+                    
+                    if tabsyn_synthetic is not None:
+                        # Store in cache
+                        synthetic_data_cache[name]['models']['tabsyn'] = {
+                            'data': tabsyn_synthetic
+                        }
+                        
+                        # Save synthetic data
+                        os.makedirs("train_data", exist_ok=True)
+                        tabsyn_synthetic.head(1000).to_csv(f"train_data/tabsyn_{name}_synthetic.csv", index=False)
+                        print(f"TabSyn synthetic data saved to train_data/tabsyn_{name}_synthetic.csv")
+            except Exception as e:
+                print(f"Error generating TabSyn synthetic data: {e}")
 
     # Now run multiple rounds of cross-validation on the generated synthetic data
     for round_idx in range(n_rounds):
@@ -1474,7 +1599,7 @@ def parse_args():
     
     print("\nTSTR Evaluation Framework for Generative Models")
     print("===============================================")
-    print("Models supported: RLiG, GANBLR, GANBLR++, CTGAN, Naive Bayes, GReaT")
+    print("Models supported: RLiG, GANBLR, GANBLR++, CTGAN, Naive Bayes, GReaT, TabSyn")
     print("Classifiers: LogisticRegression, MLP, RandomForest, XGBoost (if installed)")
     print("Running with command line arguments enables customization of datasets, models, and parameters.")
     
@@ -1483,8 +1608,8 @@ def parse_args():
         "--models", 
         type=str, 
         nargs="+", 
-        default=['rlig', 'ganblr', 'ganblr++', 'ctgan', 'nb', 'great'],
-        help="List of models to evaluate. Options: rlig, ganblr, ganblr++, ctgan, nb"
+        default=['rlig', 'ganblr', 'ganblr++', 'ctgan', 'nb', 'great', 'tabsyn'],
+        help="List of models to evaluate. Options: rlig, ganblr, ganblr++, ctgan, nb, great, tabsyn"
     )
     
     # Dataset selection arguments
@@ -1572,6 +1697,13 @@ def parse_args():
         help="Number of epochs for GReaT training"
     )
     
+    parser.add_argument(
+        "--tabsyn_epochs",
+        type=int,
+        default=50,
+        help="Number of epochs for TabSyn training"
+    )
+    
     # Verbose mode
     parser.add_argument(
         "--verbose", 
@@ -1629,6 +1761,7 @@ if __name__ == "__main__":
         rlig_epochs=args.rlig_epochs,
         ctgan_epochs=args.ctgan_epochs,
         great_epochs=args.great_epochs,
+        tabsyn_epochs=args.tabsyn_epochs,
         verbose=args.verbose
     )
     
