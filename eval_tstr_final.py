@@ -19,6 +19,7 @@ The TSTR methodology:
 
 import os
 import gc
+import torch
 import time
 import warnings
 import logging
@@ -92,7 +93,7 @@ except ImportError:
     UCI_AVAILABLE = False
 
 try:
-    from be_great.be_great import GReaT
+    from be_great import GReaT
     GREAT_AVAILABLE = True
 except ImportError:
     print("GReaT is not available. Will be skipped.")
@@ -323,7 +324,10 @@ def train_great(X_train, y_train, epochs=1):
 
     try:
         # Initiallize and train GReaT model
-        great_model = GReaT(llm='unsloth/Llama-3.2-1B', batch_size=2,  epochs=epochs,
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        print(f"CUDA available: {torch.cuda.is_available()}. Using device: {device}")
+
+        great_model = GReaT(llm='distilgpt2', batch_size=32,  epochs=50, fp16=True,
                             metric_for_best_model="accuracy")
 
         # Ensure the data is properly formatted
