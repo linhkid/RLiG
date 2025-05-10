@@ -19,6 +19,7 @@ The TSTR methodology:
 
 import os
 import gc
+import torch
 import time
 import warnings
 import logging
@@ -329,9 +330,12 @@ def train_great(X_train, y_train, epochs=1):
         return None
 
     try:
-        # Initialize and train GReaT model
-        great_model = GReaT(llm='openai-community/gpt2', batch_size=2, epochs=epochs,
-                          metric_for_best_model="accuracy")
+        # Initiallize and train GReaT model
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        print(f"CUDA available: {torch.cuda.is_available()}. Using device: {device}")
+
+        great_model = GReaT(llm='distilgpt2', batch_size=32, epochs=50, fp16=True,
+                            metric_for_best_model="accuracy")
 
         # Ensure the data is properly formatted
         if isinstance(y_train, pd.DataFrame):
