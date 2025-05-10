@@ -61,6 +61,13 @@ except ImportError:
     print("RLiG not available. Will be skipped.")
     RLIG_AVAILABLE = False
 
+try:
+    from be_great import GReaT
+    GREAT_AVAILABLE = True
+except ImportError:
+    print("GReaT is not available. Will be skipped.")
+    GREAT_AVAILABLE = False
+
 # Dataset handling
 try:
     from ucimlrepo import fetch_ucirepo

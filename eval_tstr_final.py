@@ -27,6 +27,7 @@ import pandas as pd
 import argparse
 from tqdm import tqdm
 from scipy.io.arff import loadarff
+import torch
 
 # Suppress warnings and verbose logs
 warnings.filterwarnings("ignore")
@@ -480,13 +481,15 @@ def generate_great_synthetic_data(great_model, train_data, n_samples=None):
             for i in range(num_batches):
                 print(f"Generating batch {i + 1}/{num_batches}")
                 this_batch_size = min(batch_size, n_samples - i * batch_size)
-                batch = great_model.sample(this_batch_size)
+                device = "cuda" if torch.cuda.is_available() else "cpu"
+                batch = great_model.sample(this_batch_size, device=device)
                 batches.append(batch)
 
             synthetic_data = pd.concat(batches, ignore_index=True)
         else:
             # Regular generation for other platforms
-            synthetic_data = great_model.sample(n_samples)
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            synthetic_data = great_model.sample(n_samples, device=device)
 
         print(f"Generated {len(synthetic_data)} synthetic samples from GReaT")
         return synthetic_data
@@ -497,7 +500,8 @@ def generate_great_synthetic_data(great_model, train_data, n_samples=None):
         try:
             fallback_samples = min(n_samples, 500)
             print(f"Trying fallback with {fallback_samples} samples")
-            synthetic_data = great_model.sample(fallback_samples)
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            synthetic_data = great_model.sample(fallback_samples, device=device)
             print(f"Generated {len(synthetic_data)} synthetic samples as fallback")
             return synthetic_data
         except Exception as fallback_error:
