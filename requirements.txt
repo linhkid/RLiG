@@ -16,3 +16,5 @@ tqdm==4.67.1
 ucimlrepo==0.0.7
 xgboost>=1.4.0
 ctgan>=0.5.0
+tf-keras==2.19.0
+-e git+https://github.com/kathrinse/be_great.git#egg=be_great

@@ -91,6 +91,13 @@ except ImportError:
     print("ucimlrepo not available. Will use local datasets.")
     UCI_AVAILABLE = False
 
+try:
+    from be_great.be_great import GReaT
+    GREAT_AVAILABLE = True
+except ImportError:
+    print("GReaT is not available. Will be skipped.")
+    GREAT_AVAILABLE = False
+
 
 # ============= DATA HANDLING FUNCTIONS =============
 
@@ -308,6 +315,31 @@ def train_rlig(X_train, y_train, episodes=2, epochs=5):
         return None
 
 
+def train_great(X_train, y_train, epochs=1):
+    """Train a Generation of Realistic Tabular data
+    with pretrained Transformer-based language models"""
+    if not GREAT_AVAILABLE:
+        return None
+
+    try:
+        # Initiallize and train GReaT model
+        great_model = GReaT(llm='unsloth/Llama-3.2-1B', batch_size=2,  epochs=epochs,
+                            metric_for_best_model="accuracy")
+
+        # Ensure the data is properly formatted
+        if isinstance(y_train, pd.DataFrame):
+            y_series = y_train.iloc[:, 0] if y_train.shape[1] == 1 else y_train
+        else:
+            y_series = y_train
+
+        print(f"Training GReaT with {epochs} epochs")
+        great_model.fit(X_train, y_series)
+        return great_model
+    except Exception as e:
+        print(f"Error training GReaT model: {e}")
+        return None
+
+
 # ============= SYNTHETIC DATA GENERATION FUNCTIONS =============
 
 def generate_bn_synthetic_data(bn_model, train_data, n_samples=None):
@@ -420,6 +452,52 @@ def generate_ctgan_synthetic_data(ctgan_model, train_data, n_samples=None):
             fallback_samples = min(n_samples, 500)
             print(f"Trying fallback with {fallback_samples} samples")
             synthetic_data = ctgan_model.sample(fallback_samples)
+            print(f"Generated {len(synthetic_data)} synthetic samples as fallback")
+            return synthetic_data
+        except Exception as fallback_error:
+            print(f"Fallback also failed: {fallback_error}")
+            return None
+
+
+def generate_great_synthetic_data(great_model, train_data, n_samples=None):
+    """Generate synthetic data from GReaT model"""
+    if not GREAT_AVAILABLE or great_model is None:
+        return None
+
+    if n_samples is None:
+        n_samples = len(train_data)
+
+    try:
+        # For M1/M2 Macs, generate in smaller batches
+        import os
+        if hasattr(os, 'uname') and os.uname().machine == 'arm64' and n_samples > 500:
+            print(f"Generating {n_samples} samples in smaller batches for Apple Silicon compatibility")
+            batch_size = 500
+            num_batches = (n_samples + batch_size - 1) // batch_size  # Ceiling division
+
+            # Generate in batches and concatenate
+            batches = []
+            for i in range(num_batches):
+                print(f"Generating batch {i + 1}/{num_batches}")
+                this_batch_size = min(batch_size, n_samples - i * batch_size)
+                batch = great_model.sample(this_batch_size)
+                batches.append(batch)
+
+            synthetic_data = pd.concat(batches, ignore_index=True)
+        else:
+            # Regular generation for other platforms
+            synthetic_data = great_model.sample(n_samples)
+
+        print(f"Generated {len(synthetic_data)} synthetic samples from GReaT")
+        return synthetic_data
+    except Exception as e:
+        print(f"Error generating synthetic data from GReaT: {e}")
+
+        # Fallback: if sampling fails, try to sample a smaller number
+        try:
+            fallback_samples = min(n_samples, 500)
+            print(f"Trying fallback with {fallback_samples} samples")
+            synthetic_data = great_model.sample(fallback_samples)
             print(f"Generated {len(synthetic_data)} synthetic samples as fallback")
             return synthetic_data
         except Exception as fallback_error:
@@ -895,7 +973,7 @@ def train_and_evaluate_nb(X_train, y_train, X_test, y_test, train_data, model_re
 # ============= MAIN COMPARISON FUNCTION =============
 
 def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episodes=2, rlig_epochs=5, 
-                  ctgan_epochs=50, verbose=False):
+                  ctgan_epochs=50, great_epochs=5, verbose=False):
     """
     Compare generative models using TSTR methodology as described in the paper
     with multiple rounds of cross-validation for robustness
@@ -906,7 +984,7 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
         Dictionary mapping dataset names to dataset sources
     models : list or None
         List of models to evaluate. If None, evaluate all available models.
-        Options: 'rlig', 'ganblr', 'ganblr++', 'ctgan', 'nb'
+        Options: 'rlig', 'ganblr', 'ganblr++', 'ctgan', 'nb', 'great'
     n_rounds : int
         Number of rounds of cross-validation to run (default: 3)
     seed : int
@@ -922,7 +1000,7 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
     """
     # Default models to evaluate
     if models is None:
-        models = ['rlig', 'ganblr', 'ganblr++', 'ctgan', 'nb']
+        models = ['rlig', 'ganblr', 'ganblr++', 'ctgan', 'nb', 'great']
     
     # Set random seed for reproducibility
     np.random.seed(seed)
@@ -936,6 +1014,7 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
         print(f"  - RLiG episodes: {rlig_episodes}")
         print(f"  - RLiG epochs: {rlig_epochs}")
         print(f"  - CTGAN epochs: {ctgan_epochs}")
+        print(f"  - GReaT epochs: {great_epochs}")
     
     # Dictionary to store results from all rounds
     all_rounds_results = {}
@@ -1152,7 +1231,39 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
                         print(f"RLiG synthetic data saved to train_data/rlig_{name}_synthetic.csv")
             except Exception as e:
                 print(f"Error generating RLiG synthetic data: {e}")
-    
+
+        if 'great' in models and GREAT_AVAILABLE:
+            print("\n-- Generating synthetic data for GReaT --")
+            try:
+                # Prepare data for GReaT
+                great_train_data = pd.concat([X_train, y_train], axis=1)
+
+                # Identify categorical columns
+                discrete_columns = []
+                for col in great_train_data.columns:
+                    if len(np.unique(great_train_data[col])) < 10:  # Heuristic for categorical
+                        discrete_columns.append(col)
+
+                # Train GReaT model
+                great_model = train_great(X_train, y_train, epochs=great_epochs)
+
+                if great_model:
+                    # Generate synthetic data
+                    great_synthetic = generate_great_synthetic_data(great_model, great_train_data, n_samples=n_samples)
+
+                    if great_synthetic is not None:
+                        # Store in cache
+                        synthetic_data_cache[name]['models']['great'] = {
+                            'data': great_synthetic
+                        }
+
+                        # Save synthetic data
+                        os.makedirs("train_data", exist_ok=True)
+                        great_synthetic.head(1000).to_csv(f"train_data/great_{name}_synthetic.csv", index=False)
+                        print(f"GReaT synthetic data saved to train_data/great_{name}_synthetic.csv")
+            except Exception as e:
+                print(f"Error generating GReaT synthetic data: {e}")
+
     # Now run multiple rounds of cross-validation on the generated synthetic data
     for round_idx in range(n_rounds):
         print(f"\n\n{'='*20} CROSS-VALIDATION ROUND {round_idx+1}/{n_rounds} {'='*20}\n")
@@ -1359,7 +1470,7 @@ def parse_args():
     
     print("\nTSTR Evaluation Framework for Generative Models")
     print("===============================================")
-    print("Models supported: RLiG, GANBLR, GANBLR++, CTGAN, Naive Bayes")
+    print("Models supported: RLiG, GANBLR, GANBLR++, CTGAN, Naive Bayes, GReaT")
     print("Classifiers: LogisticRegression, MLP, RandomForest, XGBoost (if installed)")
     print("Running with command line arguments enables customization of datasets, models, and parameters.")
     
@@ -1368,7 +1479,7 @@ def parse_args():
         "--models", 
         type=str, 
         nargs="+", 
-        default=['rlig', 'ganblr', 'ganblr++', 'ctgan', 'nb'],
+        default=['rlig', 'ganblr', 'ganblr++', 'ctgan', 'nb', 'great'],
         help="List of models to evaluate. Options: rlig, ganblr, ganblr++, ctgan, nb"
     )
     
@@ -1449,6 +1560,13 @@ def parse_args():
         default=5,
         help="Number of epochs for RLiG training"
     )
+
+    parser.add_argument(
+        "--great_epochs",
+        type=int,
+        default=1,
+        help="Number of epochs for GReaT training"
+    )
     
     # Verbose mode
     parser.add_argument(
@@ -1506,6 +1624,7 @@ if __name__ == "__main__":
         rlig_episodes=args.rlig_episodes,
         rlig_epochs=args.rlig_epochs,
         ctgan_epochs=args.ctgan_epochs,
+        great_epochs=args.great_epochs,
         verbose=args.verbose
     )
     
