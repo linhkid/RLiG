@@ -334,9 +334,13 @@ def train_great(X_train, y_train, epochs=1):
         device = "cuda" if torch.cuda.is_available() else "cpu"
         print(f"CUDA available: {torch.cuda.is_available()}. Using device: {device}")
 
-        great_model = GReaT(llm='distilgpt2', batch_size=32, epochs=50, fp16=True,
-                            metric_for_best_model="accuracy")
+        # #only use this if use non MPS
+        # great_model = GReaT(llm='distilgpt2', batch_size=32, epochs=50, fp16=True,
+        #                     metric_for_best_model="accuracy")
 
+        #otherwise for Mac, use this
+        great_model = GReaT(llm='unsloth/Llama-3.2-1B', batch_size=2, epochs=epochs,
+                            metric_for_best_model="accuracy")
         # Ensure the data is properly formatted
         if isinstance(y_train, pd.DataFrame):
             y_series = y_train.iloc[:, 0] if y_train.shape[1] == 1 else y_train
