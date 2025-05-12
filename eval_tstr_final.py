@@ -330,7 +330,7 @@ def train_rlig(X_train, y_train, episodes=2, epochs=5):
         return None
 
 
-def train_great(X_train, y_train, epochs=1):
+def train_great(X_train, y_train, batch_size=1, epochs=1):
     """Train a Generation of Realistic Tabular data
     with pretrained Transformer-based language models"""
     if not GREAT_AVAILABLE:
@@ -338,16 +338,19 @@ def train_great(X_train, y_train, epochs=1):
 
     try:
         # Initiallize and train GReaT model
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        print(f"CUDA available: {torch.cuda.is_available()}. Using device: {device}")
 
         # #only use this if use non MPS
         # great_model = GReaT(llm='distilgpt2', batch_size=32, epochs=50, fp16=True,
         #                     metric_for_best_model="accuracy")
 
         #otherwise for Mac, use this
-        great_model = GReaT(llm='unsloth/Llama-3.2-1B', batch_size=2, epochs=epochs,
-                            metric_for_best_model="accuracy")
+        great_model = GReaT(llm='unsloth/Llama-3.2-1B', batch_size=batch_size, epochs=epochs,
+                            metric_for_best_model="accuracy",
+                            # # For weak machine, add more 3 following lines
+                            # dataloader_num_workers=0,  # 0 means no parallelism in data loading
+                            # gradient_accumulation_steps=8,
+                            # efficient_finetuning="lora"
+                            )
         # Ensure the data is properly formatted
         if isinstance(y_train, pd.DataFrame):
             y_series = y_train.iloc[:, 0] if y_train.shape[1] == 1 else y_train
@@ -526,6 +529,9 @@ def generate_great_synthetic_data(great_model, train_data, n_samples=None):
         n_samples = len(train_data)
 
     try:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        print(f"CUDA available: {torch.cuda.is_available()}. Using device: {device}")
+
         # For M1/M2 Macs, generate in smaller batches
         import os
         if hasattr(os, 'uname') and os.uname().machine == 'arm64' and n_samples > 500:
@@ -538,13 +544,13 @@ def generate_great_synthetic_data(great_model, train_data, n_samples=None):
             for i in range(num_batches):
                 print(f"Generating batch {i + 1}/{num_batches}")
                 this_batch_size = min(batch_size, n_samples - i * batch_size)
-                batch = great_model.sample(this_batch_size)
+                batch = great_model.sample(this_batch_size, device=device)
                 batches.append(batch)
 
             synthetic_data = pd.concat(batches, ignore_index=True)
         else:
             # Regular generation for other platforms
-            synthetic_data = great_model.sample(n_samples)
+            synthetic_data = great_model.sample(n_samples, device=device)
 
         print(f"Generated {len(synthetic_data)} synthetic samples from GReaT")
         return synthetic_data
@@ -553,9 +559,12 @@ def generate_great_synthetic_data(great_model, train_data, n_samples=None):
 
         # Fallback: if sampling fails, try to sample a smaller number
         try:
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            print(f"CUDA available: {torch.cuda.is_available()}. Using device: {device}")
+
             fallback_samples = min(n_samples, 500)
             print(f"Trying fallback with {fallback_samples} samples")
-            synthetic_data = great_model.sample(fallback_samples)
+            synthetic_data = great_model.sample(fallback_samples, device=device)
             print(f"Generated {len(synthetic_data)} synthetic samples as fallback")
             return synthetic_data
         except Exception as fallback_error:
@@ -1077,7 +1086,7 @@ def train_and_evaluate_nb(X_train, y_train, X_test, y_test, train_data, model_re
 # ============= MAIN COMPARISON FUNCTION =============
 
 def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episodes=2, rlig_epochs=5, 
-                  ctgan_epochs=50, great_epochs=5, tabsyn_epochs=50, verbose=False):
+                  ctgan_epochs=50, great_bs=1, great_epochs=5, tabsyn_epochs=50, verbose=False):
     """
     Compare generative models using TSTR methodology as described in the paper
     with multiple rounds of cross-validation for robustness
@@ -1354,7 +1363,7 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
                         discrete_columns.append(col)
 
                 # Train GReaT model
-                great_model = train_great(X_train, y_train, epochs=great_epochs)
+                great_model = train_great(X_train, y_train, batch_size=great_bs, epochs=great_epochs)
 
                 if great_model:
                     # Generate synthetic data
@@ -1694,6 +1703,13 @@ def parse_args():
     )
 
     parser.add_argument(
+        "--great_bs",
+        type=int,
+        default=1,
+        help="Number of batch size for GReaT training"
+    )
+
+    parser.add_argument(
         "--great_epochs",
         type=int,
         default=1,
@@ -1763,6 +1779,7 @@ if __name__ == "__main__":
         rlig_episodes=args.rlig_episodes,
         rlig_epochs=args.rlig_epochs,
         ctgan_epochs=args.ctgan_epochs,
+        great_bs=args.great_bs,
         great_epochs=args.great_epochs,
         tabsyn_epochs=args.tabsyn_epochs,
         verbose=args.verbose
