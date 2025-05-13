@@ -206,8 +206,12 @@ def load_dataset(name, dataset_info):
             else:
                 # Read arff file
                 df, meta = read_arff_file(dataset_info)
-                # Encode categorical variables
-                X = df.drop('class', axis=1)
+                if 'class' in df.columns:
+                    # Encode categorical variables
+                    X = df.drop('class', axis=1)
+                else:
+                    # Encode categorical variables
+                    X = df.drop('xAttack', axis=1)
                 # Change the name of columns to avoid "-" to parsing error
                 X.columns = [col.replace('-', '_') for col in X.columns]
                 y = df.iloc[:, -1:]
@@ -1782,7 +1786,7 @@ if __name__ == "__main__":
     # Limit to requested datasets if both lists were provided
     if len(args.datasets) < len(datasets):
         datasets = {k: datasets[k] for k in args.datasets if k in datasets}
-    
+
     # Apply small_ctgan option if specified
     if args.small_ctgan:
         args.ctgan_epochs = 10
