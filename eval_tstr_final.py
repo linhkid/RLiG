@@ -1644,9 +1644,9 @@ def parse_args():
         "--datasets", 
         type=str, 
         nargs="+", 
-        default=['Rice', 'TicTacToe', 'car', 'PokerHand', 'Connect-4', 'Credit',
-                 'Adult', 'Chess', 'letter_rocog', 'Magic', 'Nursery', 'Room Occupancy', 'Loan',
-                 'Car', 'Maternal Health'],
+        default=['Rice', 'TicTacToe', 'PokerHand', 'Connect-4', 'Credit',
+                 'Adult', 'Chess', 'letter_rocog', 'Magic', 'Nursery', 'Room Occupancy',
+                 'Car', 'Maternal Health', 'Loan'],
         help="List of dataset names to evaluate"
     )
     
@@ -1655,7 +1655,7 @@ def parse_args():
         "--uci_ids", 
         type=int, 
         nargs="+", 
-        default=[545, 101, 158, 26, 27, 2, 59, 159, 76, 864, 19, 863],  # Default: Rice and TicTacToe
+        default=[545, 101, 158, 26, 27, 2, 22, 59, 159, 76, 864, 19, 863],  # Default: Rice and TicTacToe
         help="List of UCI dataset IDs to use"
     )
     
@@ -1771,6 +1771,7 @@ if __name__ == "__main__":
     for i, dataset_path in enumerate(args.local_datasets):
         # Calculate the appropriate index for naming
         idx = len(datasets)
+        print(idx, len(args.datasets))
         if idx < len(args.datasets):
             datasets[args.datasets[idx]] = dataset_path
         else:
