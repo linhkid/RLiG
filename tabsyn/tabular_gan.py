@@ -172,56 +172,99 @@ class TabularGAN:
         if n_samples is None:
             n_samples = len(self.train_data)
         
-        try:
-            # Since we can't use the actual TabSyn implementation,
-            # we'll create synthetic data using a statistical approach
-            if self.verbose:
-                print(f"Generating {n_samples} samples using statistical approach...")
+        # For large datasets, generate in smaller batches to avoid memory issues
+        max_batch_size = 1000
+        if n_samples > max_batch_size:
+            print(f"Generating {n_samples} samples in smaller batches to reduce memory usage")
+            batch_size = max_batch_size
+            num_batches = (n_samples + batch_size - 1) // batch_size  # Ceiling division
             
-            # Get column statistics for numeric columns
-            synthetic_data = pd.DataFrame()
-            
-            # For each column, generate synthetic values
-            for col in self.train_data.columns:
-                column_data = self.train_data[col]
+            # Generate in batches and concatenate
+            batches = []
+            for i in range(num_batches):
+                print(f"Generating batch {i+1}/{num_batches}")
+                this_batch_size = min(batch_size, n_samples - i*batch_size)
+                batch = self._generate_batch(this_batch_size)
+                batches.append(batch)
                 
-                # Check if column is categorical
-                if col in self.categorical_columns:
-                    # For categorical columns, sample with probabilities matching the original distribution
-                    value_counts = column_data.value_counts(normalize=True)
-                    synthetic_data[col] = np.random.choice(
-                        value_counts.index, 
-                        size=n_samples, 
-                        p=value_counts.values
-                    )
-                else:
-                    # For numeric columns, sample from a normal distribution with same mean and std
-                    mean = column_data.mean()
-                    std = column_data.std()
-                    if std == 0:  # Handle constant columns
-                        synthetic_data[col] = mean
-                    else:
-                        synthetic_values = np.random.normal(mean, std, n_samples)
-                        # Clip to the range of the original data to avoid unrealistic values
-                        min_val = column_data.min()
-                        max_val = column_data.max()
-                        synthetic_data[col] = np.clip(synthetic_values, min_val, max_val)
+                # Force garbage collection after each batch
+                import gc
+                gc.collect()
+                
+            synthetic_data = pd.concat(batches, ignore_index=True)
             
-            if self.verbose:
-                print(f"Generated {len(synthetic_data)} samples")
-            
-            # Save synthetic data to CSV for compatibility with evaluation code
+            # Save the combined data
             synthetic_path = os.path.join(self.save_dir, "synthetic.csv")
             os.makedirs(os.path.dirname(synthetic_path), exist_ok=True)
             synthetic_data.to_csv(synthetic_path, index=False)
             
             return synthetic_data
+        else:
+            # For smaller datasets, generate all at once
+            return self._generate_batch(n_samples)
+    
+    def _generate_batch(self, batch_size):
+        """Generate a batch of synthetic data"""
+        try:
+            # Since we can't use the actual TabSyn implementation,
+            # we'll create synthetic data using a statistical approach
+            if self.verbose:
+                print(f"Generating {batch_size} samples using statistical approach...")
+            
+            # Pre-compute statistics once to avoid repeated calculations
+            column_stats = {}
+            for col in self.train_data.columns:
+                column_data = self.train_data[col]
+                
+                if col in self.categorical_columns:
+                    # For categorical columns, pre-compute value counts
+                    column_stats[col] = {
+                        'type': 'categorical',
+                        'values': column_data.value_counts(normalize=True)
+                    }
+                else:
+                    # For numeric columns, pre-compute statistics
+                    column_stats[col] = {
+                        'type': 'numeric',
+                        'mean': column_data.mean(),
+                        'std': column_data.std(),
+                        'min': column_data.min(),
+                        'max': column_data.max()
+                    }
+            
+            # Initialize empty dataframe with pre-allocated memory
+            synthetic_data = {}
+            
+            # Generate data column by column to avoid holding multiple copies
+            for col, stats in column_stats.items():
+                if stats['type'] == 'categorical':
+                    value_counts = stats['values']
+                    synthetic_data[col] = np.random.choice(
+                        value_counts.index, 
+                        size=batch_size, 
+                        p=value_counts.values
+                    )
+                else:
+                    if stats['std'] == 0:  # Handle constant columns
+                        synthetic_data[col] = np.full(batch_size, stats['mean'])
+                    else:
+                        synthetic_values = np.random.normal(stats['mean'], stats['std'], batch_size)
+                        # Clip to the range of the original data to avoid unrealistic values
+                        synthetic_data[col] = np.clip(synthetic_values, stats['min'], stats['max'])
+            
+            # Convert to DataFrame only at the end
+            result = pd.DataFrame(synthetic_data)
+            
+            if self.verbose:
+                print(f"Generated {len(result)} samples")
+            
+            return result
             
         except Exception as e:
             print(f"Error generating synthetic data: {e}")
             # Fallback: return random samples from training data
             print("Falling back to random sampling from training data...")
-            return self.train_data.sample(n_samples, replace=True).reset_index(drop=True)
+            return self.train_data.sample(batch_size, replace=True).reset_index(drop=True)
     
     def __del__(self):
         """Clean up temporary files when instance is destroyed"""
