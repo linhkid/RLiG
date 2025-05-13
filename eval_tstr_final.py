@@ -1644,7 +1644,9 @@ def parse_args():
         "--datasets", 
         type=str, 
         nargs="+", 
-        default=['Rice', 'TicTacToe', 'car', 'PokerHand', 'Connect-4', 'Credit', 'Adult'],
+        default=['Rice', 'TicTacToe', 'car', 'PokerHand', 'Connect-4', 'Credit',
+                 'Adult', 'Chess', 'letter_rocog', 'Magic', 'Nursery', 'Room Occupancy', 'Loan',
+                 'Car', 'Maternal Health'],
         help="List of dataset names to evaluate"
     )
     
