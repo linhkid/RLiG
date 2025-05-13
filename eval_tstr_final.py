@@ -1623,13 +1623,28 @@ def parse_args():
         default=['rlig', 'ganblr', 'ganblr++', 'ctgan', 'nb', 'great', 'tabsyn'],
         help="List of models to evaluate. Options: rlig, ganblr, ganblr++, ctgan, nb, great, tabsyn"
     )
+
+    """PokerHand: 158
+    NSL-KDD: data/nsl-kdd/KDDTrain+_20Percent.arff
+    Connect-4: 26
+    Credit: 27
+    Adult: 2
+    Chess: 22
+    letter_rocog: 59
+    Magic: 159
+    Nursery: 76
+    Room Occupancy: 864
+    Car: 19
+    Maternal Health: 863
+    Loan & Credit: from local directory
+    """
     
     # Dataset selection arguments
     parser.add_argument(
         "--datasets", 
         type=str, 
         nargs="+", 
-        default=['Rice', 'TicTacToe', 'car'],
+        default=['Rice', 'TicTacToe', 'car', 'PokerHand', 'Connect-4', 'Credit', 'Adult'],
         help="List of dataset names to evaluate"
     )
     
@@ -1638,7 +1653,7 @@ def parse_args():
         "--uci_ids", 
         type=int, 
         nargs="+", 
-        default=[545, 101],  # Default: Rice and TicTacToe
+        default=[545, 101, 158, 26, 27, 2, 59, 159, 76, 864, 19, 863],  # Default: Rice and TicTacToe
         help="List of UCI dataset IDs to use"
     )
     
@@ -1647,7 +1662,7 @@ def parse_args():
         "--local_datasets", 
         type=str, 
         nargs="+", 
-        default=['data/car.arff'],
+        default=['data/loan_approval_dataset.csv', 'data/UCI_Credit_Card.csv'],
         help="List of paths to local dataset files (.arff or .csv)"
     )
     
