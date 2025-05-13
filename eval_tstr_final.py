@@ -764,20 +764,52 @@ def evaluate_tstr(synthetic_data, X_test, y_test, target_col='target'):
         # For large datasets, restrict categories computation
         if len(X_test) > 5000 or len(syn_X) > 5000:
             print("Large dataset detected - using simplified encoding to reduce memory usage")
+            
+            # Check if this is PokerHand or similar dataset with class label issues
+            need_class_alignment = False
+            unique_test_classes = np.unique(y_test)
+            unique_syn_classes = np.unique(syn_y)
+            
+            if set(unique_test_classes) != set(unique_syn_classes):
+                print(f"WARNING: Class label mismatch between synthetic and test data")
+                print(f"Test data classes: {unique_test_classes}")
+                print(f"Synthetic data classes: {unique_syn_classes}")
+                need_class_alignment = True
+            
             # Use simpler encoding that doesn't require pre-computing all category lists
             for name, model in models.items():
                 try:
                     print(f"Training {name} on synthetic data...")
                     
-                    # Use OrdinalEncoder instead of OneHotEncoder for large datasets
-                    # This significantly reduces memory usage
-                    pipeline = Pipeline([
-                        ('encoder', StandardScaler()),  # Just scale numerics, don't one-hot encode
-                        ('model', model)
-                    ])
-                    
-                    # Train on synthetic data
-                    pipeline.fit(syn_X, syn_y)
+                    # If XGBoost with class mismatch, we need to handle it differently
+                    if name == 'XGB' and need_class_alignment:
+                        # For XGBoost, we need to remap classes to match expected values
+                        target_mapping = {}
+                        for i, cls in enumerate(sorted(np.unique(syn_y))):
+                            original_idx = i
+                            if i < len(unique_test_classes):
+                                original_idx = unique_test_classes[i]
+                            target_mapping[cls] = original_idx
+                        
+                        # Map synthetic classes to match test data
+                        syn_y_mapped = syn_y.map(target_mapping) if isinstance(syn_y, pd.Series) else np.array([target_mapping.get(c, c) for c in syn_y])
+                        
+                        # Fit on mapped data
+                        pipeline = Pipeline([
+                            ('encoder', StandardScaler()),
+                            ('model', model)
+                        ])
+                        
+                        pipeline.fit(syn_X, syn_y_mapped)
+                    else:
+                        # For other models, standard pipeline
+                        pipeline = Pipeline([
+                            ('encoder', StandardScaler()),  # Just scale numerics, don't one-hot encode
+                            ('model', model)
+                        ])
+                        
+                        # Train on synthetic data
+                        pipeline.fit(syn_X, syn_y)
                     
                     # Free memory
                     gc.collect()
