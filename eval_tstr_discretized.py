@@ -394,17 +394,20 @@ def train_great(X_train, y_train, batch_size=1, epochs=1):
         print(f"CUDA available: {torch.cuda.is_available()}. Using device: {device}")
         
         # Configure GReaT with appropriate parameters and suppress warnings
-        # Add use_padding_for_generation=True to fix attention mask warning
         great_model = GReaT(
             llm='distilgpt2', 
             batch_size=2, 
             epochs=10, 
             fp16=True,
             gradient_accumulation_steps=8,
-            metric_for_best_model="accuracy",
-            use_padding_for_generation=True,  # Fix for attention mask warning
-            pad_token="<|endoftext|>"         # Set pad token to match eos token
+            metric_for_best_model="accuracy"
         )
+        
+        # Set pad token explicitly to address the attention mask warning
+        if hasattr(great_model, 'tokenizer') and great_model.tokenizer is not None:
+            if great_model.tokenizer.pad_token is None:
+                great_model.tokenizer.pad_token = great_model.tokenizer.eos_token
+                print("Set pad_token to eos_token to fix attention mask warning")
 
         #otherwise for Mac, use this
         # great_model = GReaT(llm='unsloth/Llama-3.2-1B', batch_size=batch_size, epochs=epochs,
@@ -413,9 +416,14 @@ def train_great(X_train, y_train, batch_size=1, epochs=1):
         #                     dataloader_num_workers=0,  # 0 means no parallelism in data loading
         #                     gradient_accumulation_steps=8,
         #                     efficient_finetuning="lora",
-        #                     lora_target_modules=["q_proj", "v_proj"],
-        #                     use_padding_for_generation=True  # Fix for attention mask warning
+        #                     lora_target_modules=["q_proj", "v_proj"]
         #                     )
+        # 
+        # # Set pad token explicitly to address the attention mask warning
+        # if hasattr(great_model, 'tokenizer') and great_model.tokenizer is not None:
+        #     if great_model.tokenizer.pad_token is None:
+        #         great_model.tokenizer.pad_token = great_model.tokenizer.eos_token
+        #         print("Set pad_token to eos_token to fix attention mask warning")
         # Ensure the data is properly formatted
         if isinstance(y_train, pd.DataFrame):
             y_series = y_train.iloc[:, 0] if y_train.shape[1] == 1 else y_train
@@ -621,23 +629,15 @@ def generate_great_synthetic_data(great_model, train_data, n_samples=None):
             for i in range(num_batches):
                 print(f"Generating batch {i + 1}/{num_batches}")
                 this_batch_size = min(batch_size, n_samples - i * batch_size)
-                # Use explicit padding to fix attention mask warning
-                batch = great_model.sample(
-                    this_batch_size, 
-                    device=device,
-                    use_padding=True  # Enable padding to suppress attention mask warning
-                )
+                # Sample with standard parameters
+                batch = great_model.sample(this_batch_size, device=device)
                 batches.append(batch)
 
             synthetic_data = pd.concat(batches, ignore_index=True)
         else:
             # Regular generation for other platforms
-            # Use explicit padding to fix attention mask warning
-            synthetic_data = great_model.sample(
-                n_samples, 
-                device=device,
-                use_padding=True  # Enable padding to suppress attention mask warning
-            )
+            # Sample with standard parameters
+            synthetic_data = great_model.sample(n_samples, device=device)
 
         print(f"Generated {len(synthetic_data)} synthetic samples from GReaT")
         return synthetic_data
@@ -651,12 +651,8 @@ def generate_great_synthetic_data(great_model, train_data, n_samples=None):
 
             fallback_samples = min(n_samples, 500)
             print(f"Trying fallback with {fallback_samples} samples")
-            # Use explicit padding to fix attention mask warning
-            synthetic_data = great_model.sample(
-                fallback_samples, 
-                device=device,
-                use_padding=True  # Enable padding to suppress attention mask warning
-            )
+            # Sample with standard parameters for fallback
+            synthetic_data = great_model.sample(fallback_samples, device=device)
             print(f"Generated {len(synthetic_data)} synthetic samples as fallback")
             return synthetic_data
         except Exception as fallback_error:
