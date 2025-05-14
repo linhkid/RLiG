@@ -24,7 +24,9 @@ class TabSynWrapper:
     def setup_paths(self):
         """Setup directory paths required by TabSyn"""
         # TabSyn expects specific paths
-        self.base_dir = os.path.join(os.getcwd(), 'tabsyn')
+        self.base_dir = os.path.abspath('tabsyn')  # Use absolute path
+        
+        # Main data directories
         self.data_dir = os.path.join(self.base_dir, 'data', self.dataset_name)
         self.info_dir = os.path.join(self.base_dir, 'data', 'Info')
         self.info_file = os.path.join(self.info_dir, f'{self.dataset_name}.json')
@@ -34,6 +36,12 @@ class TabSynWrapper:
         os.makedirs(self.data_dir, exist_ok=True)
         os.makedirs(self.info_dir, exist_ok=True)
         os.makedirs(self.synthetic_dir, exist_ok=True)
+        
+        # Also create raw data directory if needed
+        raw_data_dir = os.path.join(self.base_dir, 'data', self.dataset_name)
+        os.makedirs(raw_data_dir, exist_ok=True)
+        
+        print(f"TabSyn directories: \n  Data: {self.data_dir}\n  Info: {self.info_dir}\n  Synthetic: {self.synthetic_dir}")
     
     def prepare_data(self, X, y=None, test_size=0.1, random_state=42):
         """
@@ -126,13 +134,25 @@ class TabSynWrapper:
             "test_num": len(test_data)
         }
         
-        # Save info.json
+        # Save info.json to multiple locations as TabSyn looks in different places
+        # 1. In the Info directory
         with open(self.info_file, 'w') as f:
             json.dump(info, f, indent=4)
 
-        # Also save info.json to the dataset directory as TabSyn expects
+        # 2. In the dataset directory
         with open(os.path.join(self.data_dir, 'info.json'), 'w') as f:
             json.dump(info, f, indent=4)
+        
+        # 3. In relative path that TabSyn sometimes expects
+        os.makedirs(os.path.join('data', 'Info'), exist_ok=True)
+        with open(os.path.join('data', 'Info', f'{self.dataset_name}.json'), 'w') as f:
+            json.dump(info, f, indent=4)
+        
+        os.makedirs(os.path.join('data', self.dataset_name), exist_ok=True)
+        with open(os.path.join('data', self.dataset_name, 'info.json'), 'w') as f:
+            json.dump(info, f, indent=4)
+        
+        print(f"Created info.json files in all required locations for TabSyn")
         
         # Create numpy files expected by TabSyn
         self._create_numpy_files(train_data, test_data, num_cols, cat_cols, task_type, target_col_idx)
@@ -203,7 +223,8 @@ class TabSynWrapper:
             y_train = np.zeros((len(train_data), 1))
             y_test = np.zeros((len(test_data), 1))
         
-        # Save numpy files
+        # Save numpy files to multiple locations
+        # 1. In the dataset directory
         np.save(os.path.join(self.data_dir, 'X_num_train.npy'), X_train_num)
         np.save(os.path.join(self.data_dir, 'X_cat_train.npy'), X_train_cat)
         np.save(os.path.join(self.data_dir, 'y_train.npy'), y_train)
@@ -212,9 +233,36 @@ class TabSynWrapper:
         np.save(os.path.join(self.data_dir, 'X_cat_test.npy'), X_test_cat)
         np.save(os.path.join(self.data_dir, 'y_test.npy'), y_test)
         
-        # Also save to synthetic directory as TabSyn expects
+        # 2. In relative paths that TabSyn expects
+        rel_data_dir = os.path.join('data', self.dataset_name)
+        os.makedirs(rel_data_dir, exist_ok=True)
+        
+        np.save(os.path.join(rel_data_dir, 'X_num_train.npy'), X_train_num)
+        np.save(os.path.join(rel_data_dir, 'X_cat_train.npy'), X_train_cat)
+        np.save(os.path.join(rel_data_dir, 'y_train.npy'), y_train)
+        
+        np.save(os.path.join(rel_data_dir, 'X_num_test.npy'), X_test_num)
+        np.save(os.path.join(rel_data_dir, 'X_cat_test.npy'), X_test_cat)
+        np.save(os.path.join(rel_data_dir, 'y_test.npy'), y_test)
+        
+        # Also save CSV files to both synthetic and data directories
+        train_data.to_csv(os.path.join(self.data_dir, 'train.csv'), index=False)
+        test_data.to_csv(os.path.join(self.data_dir, 'test.csv'), index=False)
+        
+        train_data.to_csv(os.path.join(rel_data_dir, 'train.csv'), index=False)
+        test_data.to_csv(os.path.join(rel_data_dir, 'test.csv'), index=False)
+        
+        # Save to synthetic directory as TabSyn expects
+        os.makedirs(os.path.join('synthetic', self.dataset_name), exist_ok=True)
+        train_data.to_csv(os.path.join('synthetic', self.dataset_name, 'real.csv'), index=False)
+        test_data.to_csv(os.path.join('synthetic', self.dataset_name, 'test.csv'), index=False)
+        
+        # And also in the absolute synthetic path
+        os.makedirs(self.synthetic_dir, exist_ok=True)
         train_data.to_csv(os.path.join(self.synthetic_dir, 'real.csv'), index=False)
         test_data.to_csv(os.path.join(self.synthetic_dir, 'test.csv'), index=False)
+        
+        print(f"Saved data files to all required locations")
     
     def run_process_dataset(self):
         """Run TabSyn's process_dataset.py to prepare the dataset"""
@@ -234,9 +282,26 @@ class TabSynWrapper:
     
     def train_vae(self):
         """Train TabSyn's VAE model"""
+        # Copy required files to data/dataset_name directory
+        train_csv_src = os.path.join(self.data_dir, 'train.csv')
+        test_csv_src = os.path.join(self.data_dir, 'test.csv')
+        
+        # Also copy to relative path
+        rel_data_dir = os.path.join('data', self.dataset_name)
+        
+        # Make sure the CSV files exist in both places
+        for src, dst in [(train_csv_src, os.path.join(rel_data_dir, 'train.csv')),
+                         (test_csv_src, os.path.join(rel_data_dir, 'test.csv'))]:
+            if os.path.exists(src):
+                shutil.copy(src, dst)
+        
+        # Path to TabSyn main script
+        main_script = os.path.join(self.base_dir, 'main.py')
+        
+        # Print command for debugging
         vae_cmd = [
             sys.executable,
-            os.path.join(self.base_dir, 'main.py'),
+            main_script,
             '--dataname', self.dataset_name,
             '--method', 'vae',
             '--mode', 'train',
@@ -244,24 +309,44 @@ class TabSynWrapper:
             '--gpu', str(self.gpu)
         ]
         
+        print(f"Running VAE command: {' '.join(vae_cmd)}")
+        print(f"Working directory: {os.getcwd()}")
+        
         try:
             subprocess.run(vae_cmd, check=True)
             print(f"Successfully trained VAE for {self.dataset_name}")
             return True
         except subprocess.CalledProcessError as e:
             print(f"Error training VAE: {e}")
-            return False
+            
+            # Try with absolute path if relative fails
+            try:
+                abs_main_script = os.path.abspath(main_script)
+                print(f"Trying with absolute path: {abs_main_script}")
+                
+                vae_cmd[1] = abs_main_script
+                subprocess.run(vae_cmd, check=True)
+                print(f"Successfully trained VAE for {self.dataset_name} with absolute path")
+                return True
+            except subprocess.CalledProcessError as e2:
+                print(f"Error training VAE with absolute path: {e2}")
+                return False
     
     def train_diffusion(self):
         """Train TabSyn's diffusion model"""
+        # Path to TabSyn main script
+        main_script = os.path.join(self.base_dir, 'main.py')
+        
         diffusion_cmd = [
             sys.executable,
-            os.path.join(self.base_dir, 'main.py'),
+            main_script,
             '--dataname', self.dataset_name,
             '--method', 'tabsyn',
             '--mode', 'train',
             '--gpu', str(self.gpu)
         ]
+        
+        print(f"Running diffusion command: {' '.join(diffusion_cmd)}")
         
         try:
             subprocess.run(diffusion_cmd, check=True)
@@ -269,39 +354,104 @@ class TabSynWrapper:
             return True
         except subprocess.CalledProcessError as e:
             print(f"Error training diffusion model: {e}")
-            return False
+            
+            # Try with absolute path if relative fails
+            try:
+                abs_main_script = os.path.abspath(main_script)
+                print(f"Trying with absolute path: {abs_main_script}")
+                
+                diffusion_cmd[1] = abs_main_script
+                subprocess.run(diffusion_cmd, check=True)
+                print(f"Successfully trained diffusion model for {self.dataset_name} with absolute path")
+                return True
+            except subprocess.CalledProcessError as e2:
+                print(f"Error training diffusion model with absolute path: {e2}")
+                return False
     
     def generate_samples(self, n_samples=None):
         """Generate samples using the trained models"""
         # Set default number of samples if not specified
         if n_samples is None:
-            with open(self.info_file, 'r') as f:
-                info = json.load(f)
-                n_samples = info.get('train_num', 1000)
+            try:
+                with open(self.info_file, 'r') as f:
+                    info = json.load(f)
+                    n_samples = info.get('train_num', 1000)
+            except:
+                with open(os.path.join('data', 'Info', f'{self.dataset_name}.json'), 'r') as f:
+                    info = json.load(f)
+                    n_samples = info.get('train_num', 1000)
         
-        save_path = os.path.join(self.synthetic_dir, 'synthetic.csv')
+        # Ensure the synthetic directory exists
+        os.makedirs(self.synthetic_dir, exist_ok=True)
+        os.makedirs(os.path.join('synthetic', self.dataset_name), exist_ok=True)
+        
+        # Use multiple possible save paths
+        rel_save_path = os.path.join('synthetic', self.dataset_name, 'synthetic.csv')
+        abs_save_path = os.path.join(self.synthetic_dir, 'synthetic.csv')
+        
+        # Path to TabSyn main script
+        main_script = os.path.join(self.base_dir, 'main.py')
         
         sample_cmd = [
             sys.executable,
-            os.path.join(self.base_dir, 'main.py'),
+            main_script,
             '--dataname', self.dataset_name,
             '--method', 'tabsyn',
             '--mode', 'sample',
             '--gpu', str(self.gpu),
             '--steps', str(self.nfe),
-            '--save_path', save_path
+            '--save_path', rel_save_path
         ]
+        
+        print(f"Running sample command: {' '.join(sample_cmd)}")
         
         try:
             subprocess.run(sample_cmd, check=True)
             print(f"Successfully generated {n_samples} samples for {self.dataset_name}")
             
-            # Load the generated data
-            synthetic_data = pd.read_csv(save_path)
+            # Try to load the generated data from multiple possible locations
+            try:
+                synthetic_data = pd.read_csv(rel_save_path)
+            except:
+                try:
+                    synthetic_data = pd.read_csv(abs_save_path)
+                except:
+                    # Check if file exists in other locations
+                    for path in [
+                        os.path.join(os.getcwd(), 'synthetic', self.dataset_name, 'synthetic.csv'),
+                        os.path.join(os.getcwd(), self.synthetic_dir, 'synthetic.csv'),
+                        os.path.join(self.base_dir, 'synthetic', self.dataset_name, 'synthetic.csv')
+                    ]:
+                        if os.path.exists(path):
+                            synthetic_data = pd.read_csv(path)
+                            break
+                    else:
+                        print(f"Could not find synthetic data file in any expected location")
+                        return None
+            
             return synthetic_data
         except subprocess.CalledProcessError as e:
             print(f"Error generating samples: {e}")
-            return None
+            
+            # Try with absolute path
+            try:
+                abs_main_script = os.path.abspath(main_script)
+                print(f"Trying with absolute path: {abs_main_script}")
+                
+                sample_cmd[1] = abs_main_script
+                subprocess.run(sample_cmd, check=True)
+                
+                # Try to load the generated data
+                try:
+                    synthetic_data = pd.read_csv(rel_save_path)
+                except:
+                    synthetic_data = pd.read_csv(abs_save_path)
+                
+                print(f"Successfully generated {n_samples} samples with absolute path")
+                return synthetic_data
+            except Exception as e2:
+                print(f"Error generating samples with absolute path: {e2}")
+                return None
     
     def fit(self, X, y=None):
         """Fit TabSyn to the data"""
