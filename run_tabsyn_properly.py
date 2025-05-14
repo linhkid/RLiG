@@ -172,6 +172,7 @@ def prepare_tabsyn_data(data, dataset_name, verbose=False):
     # Create TabSyn directories
     data_dir = os.path.join('data', dataset_name)
     info_dir = os.path.join('data', 'Info')
+    dataset_path = os.path.join(data_dir, f"{dataset_name}.csv")
     
     os.makedirs(data_dir, exist_ok=True)
     os.makedirs(info_dir, exist_ok=True)
@@ -432,7 +433,7 @@ def main():
     
     try:
         # Prepare data for TabSyn
-        prepare_tabsyn_data(dataset_path, dataset_name, verbose=args.verbose)
+        prepare_tabsyn_data(data, dataset_name, verbose=args.verbose)
         
         # Process dataset for TabSyn
         processed = process_dataset(dataset_name, verbose=args.verbose)
