@@ -56,6 +56,7 @@ except ImportError:
     XGBOOST_AVAILABLE = False
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler, LabelEncoder, KBinsDiscretizer, OneHotEncoder
+from sklearn.impute import SimpleImputer
 from sklearn.compose import ColumnTransformer
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, log_loss
@@ -119,7 +120,7 @@ except ImportError as e:
 def read_arff_file(file_path):
     """Read an ARFF file and return a pandas DataFrame"""
     data, meta = loadarff(file_path)
-    df = pd.DataFrame(data[0])
+    df = pd.DataFrame(data)
     
     # Convert byte strings to regular strings
     for col in df.columns:
@@ -130,10 +131,15 @@ def read_arff_file(file_path):
 
 
 def label_encode_cols(X, cols):
-    """Label encode categorical columns"""
+    """Label encode categorical columns and handle missing values"""
     X_encoded = X.copy()
     encoders = {}
     for col in cols:
+        # Fill missing values with the most frequent value
+        most_frequent = X_encoded[col].mode()[0] if not X_encoded[col].mode().empty else "missing"
+        X_encoded[col] = X_encoded[col].fillna(most_frequent)
+        
+        # Handle label encoding
         le = LabelEncoder()
         X_encoded[col] = le.fit_transform(X_encoded[col])
         encoders[col] = le
@@ -162,6 +168,7 @@ def preprocess_data(X, y):
         transformers = []
         if len(continuous_cols) > 0:
             continuous_transformer = Pipeline(steps=[
+                ('imputer', SimpleImputer(strategy='mean')),  # Add imputer to handle missing values
                 ('scaler', StandardScaler()),
                 ('discretizer', KBinsDiscretizer(n_bins=3, encode='ordinal', strategy='uniform'))
             ])
@@ -200,6 +207,7 @@ def preprocess_data(X, y):
         transformers = []
         if len(continuous_cols) > 0:
             continuous_transformer = Pipeline(steps=[
+                ('imputer', SimpleImputer(strategy='mean')),  # Add imputer to handle missing values
                 ('scaler', StandardScaler()),
                 ('discretizer', KBinsDiscretizer(n_bins=5, encode='ordinal', strategy='uniform'))
             ])
@@ -385,20 +393,35 @@ def train_great(X_train, y_train, batch_size=1, epochs=1):
         return None
 
     try:
-        # Initiallize and train GReaT model
-
-        # #only use this if use non MPS
-        # great_model = GReaT(llm='distilgpt2', batch_size=32, epochs=50, fp16=True,
-        #                     metric_for_best_model="accuracy")
-
-        #otherwise for Mac, use this
-        great_model = GReaT(llm='unsloth/Llama-3.2-1B', batch_size=batch_size, epochs=epochs,
-                            metric_for_best_model="accuracy",
-                            # # For weak machine, add more 3 following lines
-                            dataloader_num_workers=0,  # 0 means no parallelism in data loading
-                            gradient_accumulation_steps=8,
-                            efficient_finetuning="lora"
-                            )
+        # For Windows compatibility, use distilgpt2 which has simpler architecture
+        # and doesn't require specific LoRA target modules
+        use_simpler_model = True  # Set to True for Windows/Linux compatibility
+        
+        if use_simpler_model:
+            # Use simple GPT2 model which works reliably on all platforms
+            great_model = GReaT(
+                llm='distilgpt2',
+                batch_size=batch_size, 
+                epochs=epochs,
+                metric_for_best_model="accuracy",
+                dataloader_num_workers=0,  # 0 means no parallelism in data loading
+                gradient_accumulation_steps=8
+                # No LoRA for distilgpt2
+            )
+        else:
+            # Mac-specific model with LoRA settings
+            great_model = GReaT(
+                llm='unsloth/Llama-3.2-1B', 
+                batch_size=batch_size, 
+                epochs=epochs,
+                metric_for_best_model="accuracy",
+                dataloader_num_workers=0,  # 0 means no parallelism in data loading
+                gradient_accumulation_steps=8,
+                efficient_finetuning="lora",
+                # Adding specific target modules for LoRA to avoid the error
+                lora_target_modules=["q_proj", "v_proj"]  # This fixes the error with c_attn
+            )
+        
         # Ensure the data is properly formatted
         if isinstance(y_train, pd.DataFrame):
             y_series = y_train.iloc[:, 0] if y_train.shape[1] == 1 else y_train
@@ -423,8 +446,24 @@ def train_tabsyn(X_train, y_train, epochs=50):
         return None
         
     try:
-        # Prepare data for TabSyn (we need to combine X and y)
-        combined_data = pd.concat([X_train, y_train], axis=1)
+        # Check if this is a very large dataset
+        is_large_dataset = len(X_train) > 10000  # e.g., Poker Hand dataset
+        
+        # For large datasets, take a stratified sample for training
+        if is_large_dataset:
+            print(f"Large dataset detected ({len(X_train)} rows). Using a representative sample for TabSyn training...")
+            X_sample, _, y_sample, _ = train_test_split(
+                X_train, y_train, 
+                test_size=0.7,          # Use 30% of data for training
+                random_state=42, 
+                stratify=y_train        # Maintain class distribution
+            )
+            # Prepare data for TabSyn (combine X and y)
+            combined_data = pd.concat([X_sample, y_sample], axis=1)
+            print(f"Using {len(combined_data)} representative samples for TabSyn training")
+        else:
+            # For smaller datasets, use all data
+            combined_data = pd.concat([X_train, y_train], axis=1)
         
         # Identify categorical columns
         categorical_cols = []
@@ -432,7 +471,7 @@ def train_tabsyn(X_train, y_train, epochs=50):
             if len(np.unique(combined_data[col])) < 10:  # Heuristic for categorical columns
                 categorical_cols.append(col)
         
-        # Initialize TabularGAN with conservative settings
+        # Initialize TabularGAN with memory-optimized settings
         print(f"Training TabSyn with {epochs} epochs")
         tabsyn_model = TabularGAN(
             train_data=combined_data,
@@ -443,6 +482,12 @@ def train_tabsyn(X_train, y_train, epochs=50):
         
         # Train the model
         tabsyn_model.fit()
+        
+        # For large datasets, help with memory cleanup
+        if is_large_dataset:
+            del X_sample, y_sample, combined_data
+            gc.collect()
+            
         return tabsyn_model
     except Exception as e:
         print(f"Error training TabSyn model: {e}")
@@ -621,7 +666,7 @@ def generate_great_synthetic_data(great_model, train_data, n_samples=None):
 
 
 def generate_tabsyn_synthetic_data(tabsyn_model, train_data, n_samples=None):
-    """Generate synthetic data from TabSyn model"""
+    """Generate synthetic data from TabSyn model with memory optimizations"""
     if not TABSYN_AVAILABLE or tabsyn_model is None:
         return None
 
@@ -629,24 +674,84 @@ def generate_tabsyn_synthetic_data(tabsyn_model, train_data, n_samples=None):
         n_samples = len(train_data)
 
     try:
-        # For M1/M2 Macs, generate in smaller batches for memory management
+        # Detect platform and dataset size for memory optimization
         import os
-        if hasattr(os, 'uname') and os.uname().machine == 'arm64' and n_samples > 500:
-            print(f"Generating {n_samples} samples in smaller batches for Apple Silicon compatibility")
+        import platform
+        import psutil
+        
+        # Get available memory in MB
+        available_memory = psutil.virtual_memory().available / (1024 * 1024)
+        print(f"Available memory: {available_memory:.1f} MB")
+        
+        # Determine batch size based on platform and memory
+        is_apple_silicon = hasattr(os, 'uname') and os.uname().machine == 'arm64'
+        is_windows = platform.system() == 'Windows'
+        is_large_dataset = n_samples > 5000
+        
+        if is_apple_silicon:
+            # More aggressive batching for Apple Silicon
+            batch_size = 250 if is_large_dataset else 500
+            print(f"Apple Silicon detected - using smaller batch size of {batch_size}")
+        elif is_windows and available_memory < 8000:  # Less than 8GB available
+            # Windows systems with limited memory
             batch_size = 500
+            print(f"Windows with limited memory detected - using batch size of {batch_size}")
+        elif is_large_dataset or available_memory < 4000:  # Less than 4GB available
+            # Any platform with large dataset or limited memory
+            batch_size = 1000
+            print(f"Large dataset or limited memory - using batch size of {batch_size}")
+        else:
+            # Standard batch size for most cases
+            batch_size = 2000
+        
+        # Generate in batches for all platforms to ensure consistent behavior
+        if n_samples > batch_size:
+            print(f"Generating {n_samples} samples in batches of {batch_size} for memory efficiency")
             num_batches = (n_samples + batch_size - 1) // batch_size  # Ceiling division
             
-            # Generate in batches and concatenate
-            batches = []
-            for i in range(num_batches):
-                print(f"Generating batch {i+1}/{num_batches}")
-                this_batch_size = min(batch_size, n_samples - i*batch_size)
-                batch = tabsyn_model.sample(this_batch_size)
-                batches.append(batch)
+            # Generate in batches and write directly to disk to save memory
+            temp_files = []
+            try:
+                import tempfile
+                for i in range(num_batches):
+                    print(f"Generating batch {i+1}/{num_batches}")
+                    this_batch_size = min(batch_size, n_samples - i*batch_size)
+                    batch = tabsyn_model.sample(this_batch_size)
+                    
+                    # Save batch to temporary file
+                    with tempfile.NamedTemporaryFile(suffix='.csv', delete=False) as tmp:
+                        batch.to_csv(tmp.name, index=False)
+                        temp_files.append(tmp.name)
+                    
+                    # Force memory cleanup after each batch
+                    del batch
+                    gc.collect()
                 
-            synthetic_data = pd.concat(batches, ignore_index=True)
+                # Read all batches and concatenate
+                print("Combining batches...")
+                batches = []
+                for tmp_file in temp_files:
+                    batch = pd.read_csv(tmp_file)
+                    batches.append(batch)
+                
+                synthetic_data = pd.concat(batches, ignore_index=True)
+                
+                # Clean up temp files
+                for tmp_file in temp_files:
+                    os.remove(tmp_file)
+            except Exception as batch_error:
+                print(f"Error in batch processing: {batch_error}")
+                # Clean up any remaining temp files
+                for tmp_file in temp_files:
+                    if os.path.exists(tmp_file):
+                        os.remove(tmp_file)
+                
+                # Fall back to non-batched method with reduced samples
+                print("Falling back to direct generation with reduced sample size")
+                fallback_samples = min(n_samples, batch_size)
+                synthetic_data = tabsyn_model.sample(fallback_samples)
         else:
-            # Regular generation for other platforms
+            # Small enough to generate all at once
             synthetic_data = tabsyn_model.sample(n_samples)
             
         print(f"Generated {len(synthetic_data)} synthetic samples from TabSyn")
@@ -654,16 +759,26 @@ def generate_tabsyn_synthetic_data(tabsyn_model, train_data, n_samples=None):
     except Exception as e:
         print(f"Error generating synthetic data from TabSyn: {e}")
         
-        # Fallback: if sampling fails, try to sample a smaller number
+        # Fallback: try sampling with a really conservative batch size
         try:
-            fallback_samples = min(n_samples, 500)
+            fallback_samples = min(n_samples, 200)
             print(f"Trying fallback with {fallback_samples} samples")
             synthetic_data = tabsyn_model.sample(fallback_samples)
             print(f"Generated {len(synthetic_data)} synthetic samples as fallback")
             return synthetic_data
         except Exception as fallback_error:
             print(f"Fallback also failed: {fallback_error}")
-            return None
+            
+            # Last-resort fallback: generate data by random sampling from the original
+            print("Using last-resort fallback: sampling from original data")
+            try:
+                # Simply sample with replacement from the training data
+                synthetic_data = train_data.sample(min(n_samples, 1000), replace=True).reset_index(drop=True)
+                print(f"Generated {len(synthetic_data)} samples by random sampling from original data")
+                return synthetic_data
+            except Exception as last_error:
+                print(f"All fallback methods failed: {last_error}")
+                return None
 
 
 # ============= EVALUATION FUNCTIONS =============

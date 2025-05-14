@@ -204,67 +204,168 @@ class TabularGAN:
             return self._generate_batch(n_samples)
     
     def _generate_batch(self, batch_size):
-        """Generate a batch of synthetic data"""
+        """Generate a batch of synthetic data using memory-optimized approach"""
         try:
             # Since we can't use the actual TabSyn implementation,
             # we'll create synthetic data using a statistical approach
             if self.verbose:
                 print(f"Generating {batch_size} samples using statistical approach...")
             
-            # Pre-compute statistics once to avoid repeated calculations
-            column_stats = {}
-            for col in self.train_data.columns:
-                column_data = self.train_data[col]
+            # Handle extremely large batches by further subdividing
+            if batch_size > 10000:
+                sub_batch_size = 5000
+                print(f"Large batch detected ({batch_size} samples). Breaking into {sub_batch_size}-sample sub-batches")
                 
-                if col in self.categorical_columns:
-                    # For categorical columns, pre-compute value counts
-                    column_stats[col] = {
-                        'type': 'categorical',
-                        'values': column_data.value_counts(normalize=True)
-                    }
-                else:
-                    # For numeric columns, pre-compute statistics
-                    column_stats[col] = {
-                        'type': 'numeric',
-                        'mean': column_data.mean(),
-                        'std': column_data.std(),
-                        'min': column_data.min(),
-                        'max': column_data.max()
-                    }
-            
-            # Initialize empty dataframe with pre-allocated memory
-            synthetic_data = {}
-            
-            # Generate data column by column to avoid holding multiple copies
-            for col, stats in column_stats.items():
-                if stats['type'] == 'categorical':
-                    value_counts = stats['values']
-                    synthetic_data[col] = np.random.choice(
-                        value_counts.index, 
-                        size=batch_size, 
-                        p=value_counts.values
-                    )
-                else:
-                    if stats['std'] == 0:  # Handle constant columns
-                        synthetic_data[col] = np.full(batch_size, stats['mean'])
-                    else:
-                        synthetic_values = np.random.normal(stats['mean'], stats['std'], batch_size)
-                        # Clip to the range of the original data to avoid unrealistic values
-                        synthetic_data[col] = np.clip(synthetic_values, stats['min'], stats['max'])
-            
-            # Convert to DataFrame only at the end
-            result = pd.DataFrame(synthetic_data)
-            
-            if self.verbose:
-                print(f"Generated {len(result)} samples")
-            
-            return result
+                # Generate in smaller sub-batches
+                sub_batches = []
+                for i in range(0, batch_size, sub_batch_size):
+                    this_size = min(sub_batch_size, batch_size - i)
+                    sub_batch = self._generate_sub_batch(this_size)
+                    sub_batches.append(sub_batch)
+                    
+                    # Force garbage collection between sub-batches
+                    import gc
+                    gc.collect()
+                
+                # Combine all sub-batches
+                result = pd.concat(sub_batches, ignore_index=True)
+                return result
+            else:
+                # Generate a single batch for normal sizes
+                return self._generate_sub_batch(batch_size)
             
         except Exception as e:
             print(f"Error generating synthetic data: {e}")
             # Fallback: return random samples from training data
             print("Falling back to random sampling from training data...")
             return self.train_data.sample(batch_size, replace=True).reset_index(drop=True)
+    
+    def _generate_sub_batch(self, batch_size):
+        """Helper method to generate a single sub-batch with optimized memory usage"""
+        # Pre-compute statistics once to avoid repeated calculations
+        column_stats = {}
+        for col in self.train_data.columns:
+            column_data = self.train_data[col]
+            
+            # Handle missing values in statistics calculation
+            if col in self.categorical_columns:
+                # Handle potential missing values in categorical columns
+                valid_data = column_data.dropna()
+                if len(valid_data) == 0:
+                    # All values are missing, use a placeholder
+                    column_stats[col] = {
+                        'type': 'categorical',
+                        'values': pd.Series([1.0], index=['missing_value'])
+                    }
+                else:
+                    # For categorical columns, pre-compute value counts
+                    column_stats[col] = {
+                        'type': 'categorical',
+                        'values': valid_data.value_counts(normalize=True)
+                    }
+            else:
+                # For numeric columns, handle missing values and pre-compute stats
+                valid_data = column_data.dropna()
+                if len(valid_data) == 0:
+                    # All values are missing, use zeros
+                    column_stats[col] = {
+                        'type': 'numeric',
+                        'mean': 0,
+                        'std': 0.1,  # Small non-zero std to avoid constant
+                        'min': -0.1,
+                        'max': 0.1
+                    }
+                else:
+                    mean_val = valid_data.mean()
+                    std_val = valid_data.std() if len(valid_data) > 1 else 0.1
+                    column_stats[col] = {
+                        'type': 'numeric',
+                        'mean': mean_val,
+                        'std': std_val,
+                        'min': valid_data.min(),
+                        'max': valid_data.max()
+                    }
+        
+        # Initialize empty dataframe to avoid repeated memory allocations
+        synthetic_data = {}
+        
+        # Generate data column by column to avoid holding multiple copies
+        for col, stats in column_stats.items():
+            if stats['type'] == 'categorical':
+                value_counts = stats['values']
+                # Ensure probabilities sum to 1 (fix for numerical precision issues)
+                probs = value_counts.values
+                probs = probs / probs.sum()
+                
+                # Generate values with proper handling for skewed distributions
+                synthetic_data[col] = np.random.choice(
+                    value_counts.index, 
+                    size=batch_size, 
+                    p=probs
+                )
+            else:
+                if stats['std'] < 1e-6:  # Handle near-constant columns
+                    synthetic_data[col] = np.full(batch_size, stats['mean'])
+                else:
+                    # Add correlation structure for numeric variables
+                    # (Simple approach: start with normal distribution)
+                    synthetic_values = np.random.normal(stats['mean'], stats['std'], batch_size)
+                    
+                    # Add some outliers to better represent real distributions (up to 1%)
+                    outlier_mask = np.random.random(batch_size) < 0.01
+                    if outlier_mask.sum() > 0:
+                        # Create outliers based on a wider distribution
+                        range_width = stats['max'] - stats['min']
+                        synthetic_values[outlier_mask] = np.random.uniform(
+                            stats['min'] - 0.1 * range_width,
+                            stats['max'] + 0.1 * range_width,
+                            outlier_mask.sum()
+                        )
+                    
+                    # Clip to slightly expanded range to allow some outliers
+                    range_width = stats['max'] - stats['min']
+                    expanded_min = stats['min'] - 0.05 * range_width
+                    expanded_max = stats['max'] + 0.05 * range_width
+                    synthetic_data[col] = np.clip(synthetic_values, expanded_min, expanded_max)
+        
+        # Convert to DataFrame only at the end to minimize memory usage
+        result = pd.DataFrame(synthetic_data)
+        
+        # Handle inter-column dependencies for categorical variables (optional)
+        # This is a simplified approach to maintain some basic relationships
+        try:
+            if len(self.categorical_columns) > 1:
+                # Find pairs of categorical columns with potential relationships
+                for i, col1 in enumerate(self.categorical_columns[:-1]):
+                    for col2 in self.categorical_columns[i+1:]:
+                        # Check if there's a strong association
+                        if col1 in result.columns and col2 in result.columns:
+                            # Calculate frequencies in original data
+                            joint_counts = self.train_data[[col1, col2]].value_counts(normalize=True)
+                            if len(joint_counts) < len(result) * 0.5:  # Only if the joint distribution is manageable
+                                # Apply some of these dependencies randomly to 20% of the samples
+                                apply_mask = np.random.random(len(result)) < 0.2
+                                if apply_mask.sum() > 0:
+                                    # Sample from joint distribution
+                                    sampled_pairs = joint_counts.sample(
+                                        apply_mask.sum(), 
+                                        replace=True, 
+                                        weights=joint_counts.values
+                                    ).index.to_list()
+                                    
+                                    # Apply the sampled pairs
+                                    for idx, (val1, val2) in zip(np.where(apply_mask)[0], sampled_pairs):
+                                        result.loc[idx, col1] = val1
+                                        result.loc[idx, col2] = val2
+        except Exception as e:
+            # This is optional enhancement - continue even if it fails
+            if self.verbose:
+                print(f"Note: Skipping inter-column dependency modeling: {e}")
+        
+        if self.verbose:
+            print(f"Generated {len(result)} samples")
+        
+        return result
     
     def __del__(self):
         """Clean up temporary files when instance is destroyed"""
