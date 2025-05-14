@@ -176,12 +176,15 @@ def preprocess_data(X, y, discretize=True, model_name=None):
     print("Continuous columns: ", continuous_cols)
     print("Categorical columns: ", categorical_cols)
     
-    # Check if we should apply discretization based on model type
-    # GReaT and TabSyn might perform better with non-discretized features
+    # Apply discretization based on the flag
     apply_discretization = discretize
-    if model_name in ['great', 'tabsyn'] and discretize:
-        print(f"Note: Using non-discretized features for {model_name} as it may perform better that way")
-        apply_discretization = False
+    
+    # Log the discretization status for the current model
+    if model_name:
+        if apply_discretization:
+            print(f"Note: Using discretized features for {model_name}")
+        else:
+            print(f"Note: Using non-discretized features for {model_name}")
     
     # Create transformation pipeline with optional discretization
     transformers = []
@@ -386,12 +389,22 @@ def train_great(X_train, y_train, batch_size=1, epochs=1):
         return None
 
     try:
-        # Initiallize and train GReaT model
+        # Initialize and train GReaT model
         device = "cuda" if torch.cuda.is_available() else "cpu"
         print(f"CUDA available: {torch.cuda.is_available()}. Using device: {device}")
-        # #only use this if use non MPS
-        great_model = GReaT(llm='distilgpt2', batch_size=2, epochs=10, fp16=True ,gradient_accumulation_steps=8,
-                            metric_for_best_model="accuracy")
+        
+        # Configure GReaT with appropriate parameters and suppress warnings
+        # Add use_padding_for_generation=True to fix attention mask warning
+        great_model = GReaT(
+            llm='distilgpt2', 
+            batch_size=2, 
+            epochs=10, 
+            fp16=True,
+            gradient_accumulation_steps=8,
+            metric_for_best_model="accuracy",
+            use_padding_for_generation=True,  # Fix for attention mask warning
+            pad_token="<|endoftext|>"         # Set pad token to match eos token
+        )
 
         #otherwise for Mac, use this
         # great_model = GReaT(llm='unsloth/Llama-3.2-1B', batch_size=batch_size, epochs=epochs,
@@ -400,7 +413,8 @@ def train_great(X_train, y_train, batch_size=1, epochs=1):
         #                     dataloader_num_workers=0,  # 0 means no parallelism in data loading
         #                     gradient_accumulation_steps=8,
         #                     efficient_finetuning="lora",
-        #                     lora_target_modules=["q_proj", "v_proj"]
+        #                     lora_target_modules=["q_proj", "v_proj"],
+        #                     use_padding_for_generation=True  # Fix for attention mask warning
         #                     )
         # Ensure the data is properly formatted
         if isinstance(y_train, pd.DataFrame):
@@ -607,13 +621,23 @@ def generate_great_synthetic_data(great_model, train_data, n_samples=None):
             for i in range(num_batches):
                 print(f"Generating batch {i + 1}/{num_batches}")
                 this_batch_size = min(batch_size, n_samples - i * batch_size)
-                batch = great_model.sample(this_batch_size, device=device)
+                # Use explicit padding to fix attention mask warning
+                batch = great_model.sample(
+                    this_batch_size, 
+                    device=device,
+                    use_padding=True  # Enable padding to suppress attention mask warning
+                )
                 batches.append(batch)
 
             synthetic_data = pd.concat(batches, ignore_index=True)
         else:
             # Regular generation for other platforms
-            synthetic_data = great_model.sample(n_samples, device=device)
+            # Use explicit padding to fix attention mask warning
+            synthetic_data = great_model.sample(
+                n_samples, 
+                device=device,
+                use_padding=True  # Enable padding to suppress attention mask warning
+            )
 
         print(f"Generated {len(synthetic_data)} synthetic samples from GReaT")
         return synthetic_data
@@ -627,7 +651,12 @@ def generate_great_synthetic_data(great_model, train_data, n_samples=None):
 
             fallback_samples = min(n_samples, 500)
             print(f"Trying fallback with {fallback_samples} samples")
-            synthetic_data = great_model.sample(fallback_samples, device=device)
+            # Use explicit padding to fix attention mask warning
+            synthetic_data = great_model.sample(
+                fallback_samples, 
+                device=device,
+                use_padding=True  # Enable padding to suppress attention mask warning
+            )
             print(f"Generated {len(synthetic_data)} synthetic samples as fallback")
             return synthetic_data
         except Exception as fallback_error:
@@ -1436,8 +1465,8 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
         if 'great' in models and GREAT_AVAILABLE:
             print("\n-- Generating synthetic data for GReaT --")
             try:
-                # Get raw data and preprocess without discretization for GReaT
-                X_train_great, X_test_great, y_train_great, y_test_great = preprocess_data(X, y, discretize=False, model_name='great')
+                # Get data and preprocess based on discretization flag for GReaT
+                X_train_great, X_test_great, y_train_great, y_test_great = preprocess_data(X, y, discretize=discretize, model_name='great')
                 
                 # Prepare data for GReaT
                 great_train_data = pd.concat([X_train_great, y_train_great], axis=1)
@@ -1458,7 +1487,9 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
                     if great_synthetic is not None:
                         # Store in cache
                         synthetic_data_cache[name]['models']['great'] = {
-                            'data': great_synthetic
+                            'data': great_synthetic,
+                            'X_test': X_test_great,
+                            'y_test': y_test_great
                         }
 
                         # Save synthetic data
@@ -1471,8 +1502,8 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
         if 'tabsyn' in models and TABSYN_AVAILABLE:
             print("\n-- Generating synthetic data for TabSyn --")
             try:
-                # Get raw data and preprocess without discretization for TabSyn
-                X_train_tabsyn, X_test_tabsyn, y_train_tabsyn, y_test_tabsyn = preprocess_data(X, y, discretize=False, model_name='tabsyn')
+                # Get data and preprocess based on discretization flag for TabSyn
+                X_train_tabsyn, X_test_tabsyn, y_train_tabsyn, y_test_tabsyn = preprocess_data(X, y, discretize=discretize, model_name='tabsyn')
                 
                 # Train TabSyn model with consistent random seed
                 tabsyn_model = train_tabsyn(X_train_tabsyn, y_train_tabsyn, epochs=tabsyn_epochs, random_seed=seed)
@@ -1484,7 +1515,9 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
                     if tabsyn_synthetic is not None:
                         # Store in cache
                         synthetic_data_cache[name]['models']['tabsyn'] = {
-                            'data': tabsyn_synthetic
+                            'data': tabsyn_synthetic,
+                            'X_test': X_test_tabsyn,
+                            'y_test': y_test_tabsyn
                         }
                         
                         # Save synthetic data
@@ -1560,9 +1593,19 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
                     if 'bic' in model_cache and model_cache['bic'] is not None:
                         model_results['bic_scores']['RLiG'] = model_cache['bic']
                 else:
-                    # Standard TSTR evaluation for other models
+                    # Use model-specific test data if available
+                    test_X = X_test
+                    test_y = y_test
+                    
+                    # For models that may have model-specific test data
+                    if model_name in ['great', 'tabsyn'] and 'X_test' in model_cache and 'y_test' in model_cache:
+                        test_X = model_cache['X_test']
+                        test_y = model_cache['y_test']
+                        print(f"Using model-specific test data for {model_name}")
+                    
+                    # Standard TSTR evaluation
                     start_time = time.time()
-                    tstr_results = evaluate_tstr(synthetic_data, X_test, y_test)
+                    tstr_results = evaluate_tstr(synthetic_data, test_X, test_y)
                     eval_time = time.time() - start_time
                     
                     # Store metrics
