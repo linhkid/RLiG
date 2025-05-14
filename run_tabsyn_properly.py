@@ -174,6 +174,14 @@ def prepare_tabsyn_data(data, dataset_name, verbose=False):
     info_dir = os.path.join('data', 'Info')
     dataset_path = os.path.join(data_dir, f"{dataset_name}.csv")
     
+    # Add a dummy numerical column if all columns are categorical
+    # TabSyn requires at least one numerical column for QuantileTransformer
+    num_cols = data.select_dtypes(include=['number']).columns
+    if len(num_cols) == 0:
+        if verbose:
+            print("No numerical columns found, adding a dummy numerical column")
+        data['dummy_numerical'] = np.random.normal(0, 1, len(data))
+    
     os.makedirs(data_dir, exist_ok=True)
     os.makedirs(info_dir, exist_ok=True)
     
@@ -185,11 +193,28 @@ def prepare_tabsyn_data(data, dataset_name, verbose=False):
     cat_col_idx = []
     num_col_idx = []
     
+    # Get column types after possible addition of dummy column
     for i, col in enumerate(data.columns):
-        if data[col].dtype == 'object' or len(data[col].unique()) < 10:
+        if col == 'dummy_numerical':
+            # Mark dummy column as numerical
+            num_col_idx.append(i)
+        elif data[col].dtype == 'object' or len(data[col].unique()) < 10:
             cat_col_idx.append(i)
         else:
             num_col_idx.append(i)
+            
+    # Ensure we have at least one numerical column for TabSyn
+    if len(num_col_idx) == 0:
+        if 'dummy_numerical' not in data.columns:
+            # Add dummy numerical column at the end (before target)
+            target_col = data.columns[-1]
+            target_val = data[target_col]
+            data = data.drop(target_col, axis=1)
+            data['dummy_numerical'] = np.random.normal(0, 1, len(data))
+            data[target_col] = target_val
+            
+            # Update indices
+            num_col_idx = [len(data.columns) - 2]  # Before target column
     
     # Target column (last column)
     target_col_idx = [len(data.columns) - 1]
