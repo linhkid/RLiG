@@ -92,12 +92,14 @@ class TabSynWrapper:
                 
                 # Try importing TabSyn modules
                 try:
-                    from tabsyn.vae.main import train as train_vae
-                    from tabsyn.main import train_diffusion, sample_diffusion
+                    # Import modules but don't directly import functions
+                    # TabSyn doesn't expose functions directly like that
+                    import tabsyn
+                    import tabsyn.vae.main
+                    import tabsyn.main
+                    import tabsyn.utils
                     
-                    self.train_vae = train_vae
-                    self.train_diffusion = train_diffusion
-                    self.sample_diffusion = sample_diffusion
+                    self.tabsyn_modules_loaded = True
                     
                     if self.verbose:
                         print("Successfully imported TabSyn modules")
@@ -207,39 +209,84 @@ class TabSynWrapper:
             metadata = self._prepare_data()
             
             # Set up command line arguments for TabSyn
-            sys.argv = ['tabsyn_wrapper.py'] 
-            
-            # First train the VAE using TabSyn's train script
-            if self.verbose:
-                print("Training TabSyn VAE model...")
-            
-            os.environ['DATAPATH'] = self.data_dir
-            os.environ['DATANAME'] = self.dataset_name
-            os.environ['METHOD'] = 'vae'
-            os.environ['MODE'] = 'train'
-            os.environ['DEVICE'] = self.device
-            os.environ['EPOCHS'] = str(self.epochs)
-            os.environ['SAVE_PATH'] = self.synthetic_dir
-            
             original_dir = os.getcwd()
             try:
                 # Change to the TabSyn directory
                 tabsyn_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tabsyn')
                 os.chdir(tabsyn_dir)
                 
-                # Run TabSyn's VAE training
-                from tabsyn.vae.main import main as vae_main
+                # Create a proper args object expected by TabSyn main functions
+                class TabSynArgs:
+                    def __init__(self):
+                        self.dataname = self.dataset_name
+                        self.datapath = self.data_dir
+                        self.device = self.device
+                        self.max_beta = 1.0
+                        self.min_beta = 0.0
+                        self.lambd = 1.0
+                        self.epoch = self.epochs
+                        self.method = 'vae'
+                        self.mode = 'train'
+                        self.save_path = os.path.join(self.synthetic_dir, 'synthetic.csv')
+                        self.gpu = 0
+                
+                args = TabSynArgs()
+                args.dataname = self.dataset_name
+                args.datapath = self.data_dir
+                args.device = self.device
+                args.epoch = self.epochs
+                
+                # First train the VAE
                 if self.verbose:
-                    print("Running TabSyn VAE training...")
-                vae_main()
+                    print("Training TabSyn VAE model...")
+                
+                # Run VAE training
+                args.method = 'vae'
+                args.mode = 'train'
+                
+                # Instead of directly importing the main function, use subprocess to run TabSyn command
+                import subprocess
+                vae_cmd = [
+                    sys.executable, 
+                    os.path.join(tabsyn_dir, 'main.py'),
+                    '--dataname', self.dataset_name,
+                    '--method', 'vae',
+                    '--mode', 'train',
+                    '--epoch', str(self.epochs),
+                    '--device', self.device
+                ]
+                
+                if self.verbose:
+                    print(f"Running command: {' '.join(vae_cmd)}")
+                    
+                vae_proc = subprocess.run(vae_cmd, capture_output=True, text=True)
+                if vae_proc.returncode != 0:
+                    if self.verbose:
+                        print(f"VAE training failed with error:\n{vae_proc.stderr}")
+                    raise Exception(f"VAE training failed: {vae_proc.stderr}")
                 
                 # After VAE training, train diffusion model
                 if self.verbose:
                     print("Training TabSyn diffusion model...")
                 
-                os.environ['METHOD'] = 'tabsyn'
-                from tabsyn.main import main as tabsyn_main
-                tabsyn_main()
+                diffusion_cmd = [
+                    sys.executable, 
+                    os.path.join(tabsyn_dir, 'main.py'),
+                    '--dataname', self.dataset_name,
+                    '--method', 'tabsyn',
+                    '--mode', 'train',
+                    '--epoch', str(self.epochs),
+                    '--device', self.device
+                ]
+                
+                if self.verbose:
+                    print(f"Running command: {' '.join(diffusion_cmd)}")
+                    
+                diffusion_proc = subprocess.run(diffusion_cmd, capture_output=True, text=True)
+                if diffusion_proc.returncode != 0:
+                    if self.verbose:
+                        print(f"Diffusion training failed with error:\n{diffusion_proc.stderr}")
+                    raise Exception(f"Diffusion training failed: {diffusion_proc.stderr}")
                 
                 self.is_trained = True
                 
@@ -313,9 +360,27 @@ class TabSynWrapper:
                 tabsyn_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tabsyn')
                 os.chdir(tabsyn_dir)
                 
-                # Run TabSyn's sample function
-                from tabsyn.main import main as tabsyn_main
-                tabsyn_main()
+                # Run TabSyn's sample function using subprocess
+                import subprocess
+                sample_cmd = [
+                    sys.executable, 
+                    os.path.join(tabsyn_dir, 'main.py'),
+                    '--dataname', self.dataset_name,
+                    '--method', 'tabsyn',
+                    '--mode', 'sample',
+                    '--samples', str(n_samples),
+                    '--device', self.device,
+                    '--save_path', os.path.join(self.synthetic_dir, 'tabsyn.csv')
+                ]
+                
+                if self.verbose:
+                    print(f"Running command: {' '.join(sample_cmd)}")
+                    
+                sample_proc = subprocess.run(sample_cmd, capture_output=True, text=True)
+                if sample_proc.returncode != 0:
+                    if self.verbose:
+                        print(f"Sampling failed with error:\n{sample_proc.stderr}")
+                    raise Exception(f"Sampling failed: {sample_proc.stderr}")
                 
                 # Restore original directory
                 os.chdir(original_dir)
