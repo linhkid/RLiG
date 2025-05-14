@@ -12,24 +12,162 @@ import pandas as pd
 import argparse
 import subprocess
 import shutil
+import warnings
+from scipy.io.arff import loadarff
+
+# Suppress warnings
+warnings.filterwarnings('ignore')
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Run TabSyn properly on a dataset")
-    parser.add_argument("--dataset", type=str, required=True, help="Dataset name (csv file in train_data directory)")
+    parser.add_argument("--dataset", type=str, required=True, help="Dataset name, UCI dataset ID, or path to local file")
     parser.add_argument("--epochs", type=int, default=50, help="Number of epochs for training")
     parser.add_argument("--samples", type=int, default=None, help="Number of samples to generate")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--output", type=str, default=None, help="Output file path")
     parser.add_argument("--verbose", action="store_true", help="Enable verbose output")
+    parser.add_argument("--uci", type=int, default=None, help="UCI dataset ID (if using UCI repository)")
+    parser.add_argument("--discretize", action="store_true", default=True, help="Apply discretization to continuous features")
+    parser.add_argument("--no-discretize", action="store_false", dest="discretize", help="Do not apply discretization")
     return parser.parse_args()
 
-def prepare_tabsyn_data(dataset_path, dataset_name, verbose=False):
+def read_arff_file(file_path):
+    """Read an ARFF file and return a pandas DataFrame"""
+    data, meta = loadarff(file_path)
+    df = pd.DataFrame(data)
+    
+    # Convert byte strings to regular strings
+    for col in df.columns:
+        if df[col].dtype == object:  # Object type typically indicates byte strings from ARFF
+            df[col] = df[col].str.decode('utf-8')
+    
+    return df, meta
+
+def load_dataset(name, dataset_info=None, uci_id=None, verbose=False):
+    """Load dataset from UCI repository, local file, or train_data directory"""
+    if verbose:
+        print(f"Loading dataset: {name}")
+    
+    # Case 1: UCI dataset
+    if uci_id is not None:
+        try:
+            from ucimlrepo import fetch_ucirepo
+            data = fetch_ucirepo(id=uci_id)
+            X = data.data.features
+            # Change the name of columns to avoid "-" to parsing error
+            X.columns = [col.replace('-', '_') for col in X.columns]
+            y = data.data.targets
+            # Change the name of y dataframe to avoid duplicate "class" keyword
+            y.columns = ["target"]
+            if verbose:
+                print(f"Loaded UCI dataset {name} (id={uci_id})")
+            return X, y
+        except Exception as e:
+            if verbose:
+                print(f"Error loading UCI dataset {name} (id={uci_id}): {e}")
+            return None, None
+    
+    # Case 2: Local file path
+    if os.path.exists(name):
+        try:
+            if name.endswith(".csv"):
+                df = pd.read_csv(name)
+                X = df.iloc[:, :-1]
+                # Change the name of columns to avoid "-" to parsing error
+                X.columns = [col.replace('-', '_') for col in X.columns]
+                y = df.iloc[:, -1:]
+                # Change the name of y dataframe to avoid duplicate "class" keyword
+                y.columns = ["target"]
+                if verbose:
+                    print(f"Loaded local CSV file: {name}")
+                return X, y
+            elif name.endswith(".arff"):
+                # Read arff file
+                df, meta = read_arff_file(name)
+                if 'class' in df.columns:
+                    # Encode categorical variables
+                    X = df.drop('class', axis=1)
+                else:
+                    # Encode categorical variables
+                    X = df.drop('xAttack', axis=1)
+                # Change the name of columns to avoid "-" to parsing error
+                X.columns = [col.replace('-', '_') for col in X.columns]
+                y = df.iloc[:, -1:]
+                # Change the name of y dataframe to avoid duplicate "class" keyword
+                y.columns = ["target"]
+                if verbose:
+                    print(f"Loaded local ARFF file: {name}")
+                return X, y
+            else:
+                if verbose:
+                    print(f"Unsupported file format: {name}")
+                return None, None
+        except Exception as e:
+            if verbose:
+                print(f"Error loading file {name}: {e}")
+            return None, None
+    
+    # Case 3: Dataset name in train_data directory
+    dataset_path = f"train_data/{name}_train_data.csv"
+    if os.path.exists(dataset_path):
+        try:
+            df = pd.read_csv(dataset_path)
+            X = df.iloc[:, :-1]
+            y = df.iloc[:, -1:]
+            y.columns = ["target"]
+            if verbose:
+                print(f"Loaded dataset from train_data directory: {dataset_path}")
+            return X, y
+        except Exception as e:
+            if verbose:
+                print(f"Error loading dataset {name} from train_data: {e}")
+            return None, None
+    
+    # No match found
+    if verbose:
+        print(f"Could not find dataset: {name}")
+    return None, None
+
+def preprocess_data(X, y, discretize=True, verbose=False):
+    """Preprocess data with optional discretization"""
+    if verbose:
+        print(f"Preprocessing data (discretize={discretize})...")
+    
+    # Identify column types
+    continuous_cols = X.select_dtypes(include=['number']).columns
+    categorical_cols = X.select_dtypes(include=['object']).columns
+    
+    if verbose:
+        print("Continuous columns: ", continuous_cols)
+        print("Categorical columns: ", categorical_cols)
+    
+    # Apply discretization based on the flag
+    if discretize and len(continuous_cols) > 0:
+        if verbose:
+            print("Using discretization with quantile binning (7 bins)")
+        
+        from sklearn.preprocessing import KBinsDiscretizer
+        discretizer = KBinsDiscretizer(n_bins=7, encode='ordinal', strategy='quantile')
+        
+        # Apply discretization to continuous columns
+        X_disc = X.copy()
+        X_disc[continuous_cols] = discretizer.fit_transform(X[continuous_cols])
+        
+        # Combine with categorical columns
+        combined_data = pd.concat([X_disc, y], axis=1)
+    else:
+        # Just combine without discretization
+        combined_data = pd.concat([X, y], axis=1)
+    
+    if verbose:
+        print(f"Preprocessed data shape: {combined_data.shape}")
+    
+    return combined_data
+
+def prepare_tabsyn_data(data, dataset_name, verbose=False):
     """Prepare data in TabSyn's expected format"""
     if verbose:
         print(f"Preparing dataset {dataset_name} for TabSyn...")
-    
-    # Load the dataset
-    data = pd.read_csv(dataset_path)
     
     # Create TabSyn directories
     data_dir = os.path.join('data', dataset_name)
@@ -263,18 +401,23 @@ def sample_tabsyn(dataset_name, n_samples, output_path, verbose=False):
 def main():
     args = parse_args()
     
-    # Ensure dataset name has proper suffix
+    # Get dataset name without file extension
     dataset_name = args.dataset.replace("_train_data.csv", "")
-    dataset_path = f"train_data/{dataset_name}_train_data.csv"
+    if args.dataset.endswith(".csv") or args.dataset.endswith(".arff"):
+        dataset_name = os.path.splitext(os.path.basename(args.dataset))[0]
     
-    # Check if dataset exists
-    if not os.path.exists(dataset_path):
-        print(f"Dataset not found: {dataset_path}")
+    # Load dataset using our flexible loader
+    X, y = load_dataset(args.dataset, uci_id=args.uci, verbose=args.verbose)
+    
+    # Check if dataset was loaded successfully
+    if X is None or y is None:
+        print(f"Failed to load dataset: {args.dataset}")
         return
     
-    print(f"Loading dataset: {dataset_path}")
-    data = pd.read_csv(dataset_path)
-    print(f"Dataset loaded: {data.shape[0]} rows, {data.shape[1]} columns")
+    print(f"Dataset loaded: {X.shape[0]} rows, {X.shape[1] + 1} columns")
+    
+    # Preprocess data with optional discretization
+    data = preprocess_data(X, y, discretize=args.discretize, verbose=args.verbose)
     
     # Set number of samples if not specified
     n_samples = args.samples if args.samples is not None else len(data)
