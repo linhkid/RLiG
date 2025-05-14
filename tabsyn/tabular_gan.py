@@ -21,7 +21,7 @@ class TabularGAN:
     It provides a simplified interface for training and sampling with TabSyn.
     """
     
-    def __init__(self, train_data, categorical_columns=None, epochs=50, verbose=True):
+    def __init__(self, train_data, categorical_columns=None, epochs=50, verbose=True, random_seed=42):
         """
         Initialize the TabularGAN wrapper for TabSyn
         
@@ -35,11 +35,23 @@ class TabularGAN:
             Number of training epochs
         verbose : bool
             Whether to print verbose output
+        random_seed : int
+            Random seed for reproducibility (default: 42)
         """
         self.train_data = train_data
         self.epochs = epochs
         self.verbose = verbose
+        self.random_seed = random_seed
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        
+        # Set random seeds for reproducibility
+        np.random.seed(self.random_seed)
+        torch.manual_seed(self.random_seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(self.random_seed)
+        
+        if self.verbose:
+            print(f"TabularGAN initialized with random seed: {self.random_seed}")
         
         # Identify categorical columns if not provided
         self.categorical_columns = categorical_columns
@@ -171,6 +183,15 @@ class TabularGAN:
         
         if n_samples is None:
             n_samples = len(self.train_data)
+            
+        # Re-apply the random seed before sampling to ensure reproducibility
+        np.random.seed(self.random_seed)
+        torch.manual_seed(self.random_seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(self.random_seed)
+            
+        if self.verbose:
+            print(f"Generating samples with random seed: {self.random_seed}")
         
         try:
             # Since we can't use the actual TabSyn implementation,

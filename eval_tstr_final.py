@@ -369,11 +369,22 @@ def train_great(X_train, y_train, batch_size=1, epochs=1):
         return None
 
 
-def train_tabsyn(X_train, y_train, epochs=50):
+def train_tabsyn(X_train, y_train, epochs=50, random_seed=42):
     """Train the TabSyn tabular data synthesizer from Amazon Science
     
     TabSyn is a tabular data synthesis method that uses a GAN architecture
     with a pre-trained transformer encoder and a distribution-aware decoder.
+    
+    Parameters:
+    -----------
+    X_train : pandas.DataFrame
+        Training features
+    y_train : pandas.DataFrame
+        Training targets
+    epochs : int
+        Number of training epochs
+    random_seed : int
+        Random seed for reproducibility
     """
     if not TABSYN_AVAILABLE:
         return None
@@ -388,13 +399,14 @@ def train_tabsyn(X_train, y_train, epochs=50):
             if len(np.unique(combined_data[col])) < 10:  # Heuristic for categorical columns
                 categorical_cols.append(col)
         
-        # Initialize TabularGAN with conservative settings
-        print(f"Training TabSyn with {epochs} epochs")
+        # Initialize TabularGAN with conservative settings and consistent random seed
+        print(f"Training TabSyn with {epochs} epochs and random_seed={random_seed}")
         tabsyn_model = TabularGAN(
             train_data=combined_data,
             categorical_columns=categorical_cols,
             epochs=epochs,
-            verbose=True
+            verbose=True,
+            random_seed=random_seed
         )
         
         # Train the model
@@ -1126,6 +1138,22 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
     # Set random seed for reproducibility
     np.random.seed(seed)
     
+    # Set seed for PyTorch
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+    
+    # Set seeds for other libraries if they are used
+    try:
+        import tensorflow as tf
+        import random
+        random.seed(seed)
+        tf.random.set_seed(seed)
+        os.environ['PYTHONHASHSEED'] = str(seed)
+        print(f"Random seeds set to {seed} for numpy, torch, tensorflow, and Python")
+    except ImportError:
+        print(f"Random seeds set to {seed} for numpy and torch")
+    
     print(f"Running {n_rounds} rounds of cross-validation for robust results...")
     print(f"Models to evaluate: {', '.join(models)}")
     print(f"Datasets: {', '.join(datasets.keys())}")
@@ -1389,8 +1417,8 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
         if 'tabsyn' in models and TABSYN_AVAILABLE:
             print("\n-- Generating synthetic data for TabSyn --")
             try:
-                # Train TabSyn model
-                tabsyn_model = train_tabsyn(X_train, y_train, epochs=tabsyn_epochs)
+                # Train TabSyn model with consistent random seed
+                tabsyn_model = train_tabsyn(X_train, y_train, epochs=tabsyn_epochs, random_seed=seed)
                 
                 if tabsyn_model:
                     # Generate synthetic data
