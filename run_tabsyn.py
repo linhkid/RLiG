@@ -9,7 +9,7 @@ import os
 import argparse
 import pandas as pd
 import numpy as np
-from tabsyn_wrapper import TabSynWrapper
+from tabsyn_wrapper_fixed import TabSynWrapper
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Run TabSyn on a dataset")

@@ -463,12 +463,12 @@ def train_tabsyn(X_train, y_train, epochs=50, random_seed=42):
         # Import our improved TabSyn wrapper
         try:
             # Try to import directly first
-            from tabsyn_wrapper import TabSynWrapper
+            from tabsyn_wrapper_fixed import TabSynWrapper
         except ImportError:
             # If that fails, try from the full path
             import sys
             sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-            from tabsyn_wrapper import TabSynWrapper
+            from tabsyn_wrapper_fixed import TabSynWrapper
         
         # Prepare data for TabSyn (we need to combine X and y)
         combined_data = pd.concat([X_train, y_train], axis=1)

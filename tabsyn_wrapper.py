@@ -215,26 +215,7 @@ class TabSynWrapper:
                 tabsyn_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tabsyn')
                 os.chdir(tabsyn_dir)
                 
-                # Create a proper args object expected by TabSyn main functions
-                class TabSynArgs:
-                    def __init__(self):
-                        self.dataname = self.dataset_name
-                        self.datapath = self.data_dir
-                        self.device = self.device
-                        self.max_beta = 1.0
-                        self.min_beta = 0.0
-                        self.lambd = 1.0
-                        self.epoch = self.epochs
-                        self.method = 'vae'
-                        self.mode = 'train'
-                        self.save_path = os.path.join(self.synthetic_dir, 'synthetic.csv')
-                        self.gpu = 0
-                
-                args = TabSynArgs()
-                args.dataname = self.dataset_name
-                args.datapath = self.data_dir
-                args.device = self.device
-                args.epoch = self.epochs
+                # Instead of creating a custom args class, just use subprocess directly
                 
                 # First train the VAE
                 if self.verbose:
