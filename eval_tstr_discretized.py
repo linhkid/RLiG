@@ -468,7 +468,7 @@ def train_tabsyn(X_train, y_train, epochs=50, random_seed=42):
             if len(np.unique(combined_data[col])) < 10:  # Heuristic for categorical columns
                 categorical_cols.append(col)
         
-        # Initialize TabularGAN with conservative settings and consistent random seed
+        # Initialize TabularGAN with TabSyn and proper random seed support
         print(f"Training TabSyn with {epochs} epochs and random_seed={random_seed}")
         tabsyn_model = TabularGAN(
             train_data=combined_data,
