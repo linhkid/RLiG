@@ -71,7 +71,8 @@ class TabSynWrapper:
         # TabSyn requires at least one numerical column
         if len(num_cols) == 0:
             print("No numerical columns found, adding a dummy numerical column")
-            data['dummy_numerical'] = np.random.normal(0, 1, len(data))
+            # Use integers instead of floating point to avoid label encoding issues
+            data['dummy_numerical'] = np.arange(len(data)) % 10  # Use modulo to keep values in a small range
             num_cols = ['dummy_numerical']
         
         # Split data into train and test sets
@@ -156,16 +157,25 @@ class TabSynWrapper:
         
         # Apply label encoding to categorical columns
         for col in cat_cols:
-            le = LabelEncoder()
+            # Make sure we convert to strings to avoid numeric comparison issues
             train_cat = train_data[col].astype(str)
+            
+            # Get all unique values from both train and test
+            all_values = set(train_cat.values)
             test_cat = test_data[col].astype(str)
+            all_values.update(test_cat.values)
             
-            # Fit on train data
-            le.fit(train_cat)
+            # Create a mapping dictionary instead of using LabelEncoder
+            # This avoids issues with unseen labels
+            label_map = {val: i for i, val in enumerate(sorted(all_values))}
             
-            # Transform both train and test
-            X_train_cat[col] = le.transform(train_cat)
-            X_test_cat[col] = le.transform(test_cat)
+            # Apply mapping
+            X_train_cat[col] = train_cat.map(label_map)
+            X_test_cat[col] = test_cat.map(label_map)
+            
+            # Fill any NaN values (which could occur if test has values not in train)
+            X_train_cat[col] = X_train_cat[col].fillna(0).astype(int)
+            X_test_cat[col] = X_test_cat[col].fillna(0).astype(int)
         
         X_train_cat = X_train_cat.to_numpy()
         X_test_cat = X_test_cat.to_numpy()
@@ -176,17 +186,18 @@ class TabSynWrapper:
                 y_train = train_data[target_cols].to_numpy().astype(np.float32)
                 y_test = test_data[target_cols].to_numpy().astype(np.float32)
             else:
-                y_train = train_data[target_cols].astype(str)
-                y_test = test_data[target_cols].astype(str)
+                # For classification tasks, also use our manual mapping approach
+                target_col = target_cols[0]  # Assume single target column
+                train_target = train_data[target_col].astype(str)
+                test_target = test_data[target_col].astype(str)
                 
-                # Label encode if classification
-                le = LabelEncoder()
-                y_train_flat = y_train.iloc[:, 0]
-                y_test_flat = y_test.iloc[:, 0]
+                all_target_values = set(train_target.values)
+                all_target_values.update(test_target.values)
                 
-                le.fit(y_train_flat)
-                y_train = le.transform(y_train_flat).reshape(-1, 1)
-                y_test = le.transform(y_test_flat).reshape(-1, 1)
+                target_map = {val: i for i, val in enumerate(sorted(all_target_values))}
+                
+                y_train = np.array([target_map[val] for val in train_target]).reshape(-1, 1)
+                y_test = np.array([target_map[val] for val in test_target]).reshape(-1, 1)
         else:
             # Create dummy targets if no target specified
             y_train = np.zeros((len(train_data), 1))
