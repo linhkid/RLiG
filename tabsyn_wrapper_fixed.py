@@ -382,6 +382,28 @@ class TabSynWrapper:
                         if self.verbose:
                             print(f"Error copying data files: {e}")
                         raise
+                        
+                # Also try to run TabSyn's process_dataset.py to generate the needed numpy files
+                try:
+                    process_cmd = [
+                        sys.executable, 
+                        os.path.join(tabsyn_dir, 'process_dataset.py'),
+                        '--dataname', self.dataset_name
+                    ]
+                    
+                    if self.verbose:
+                        print(f"Running dataset processing command: {' '.join(process_cmd)}")
+                        
+                    process_proc = subprocess.run(process_cmd, capture_output=True, text=True)
+                    if process_proc.returncode != 0:
+                        if self.verbose:
+                            print(f"Dataset processing failed with error:\n{process_proc.stderr}")
+                    else:
+                        if self.verbose:
+                            print("Dataset processed successfully for TabSyn")
+                except Exception as e:
+                    if self.verbose:
+                        print(f"Error running dataset processing: {e}")
                 
                 # Run TabSyn's sample function using subprocess
                 sample_cmd = [
