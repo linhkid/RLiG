@@ -11,8 +11,11 @@ import sys
 import argparse
 import numpy as np
 import pandas as pd
-from tabsyn_proper_wrapper import TabSynWrapper
 from sklearn.model_selection import train_test_split
+
+# Add current directory to Python path
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from tabsyn_proper_wrapper import TabSynWrapper
 
 # List of datasets to evaluate
 DATASETS = [

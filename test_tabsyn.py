@@ -4,6 +4,9 @@ import argparse
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder
+
+# Add current directory to Python path
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from tabsyn_proper_wrapper import TabSynWrapper
 
 def load_dataset(dataset_name, uci_id=None, verbose=True):
