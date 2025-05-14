@@ -119,14 +119,15 @@ class TabSynWrapper:
         
         # Create directory structure required by TabSyn
         self.data_dir = os.path.join(self.temp_dir, "data")
-        self.info_dir = os.path.join(self.data_dir, "Info")
         self.dataset_dir = os.path.join(self.data_dir, self.dataset_name)
+        # TabSyn expects info.json in dataset_dir
+        self.info_file = os.path.join(self.dataset_dir, "info.json")
         self.vae_dir = os.path.join(self.temp_dir, "vae_ckpt", self.dataset_name)
         self.diffusion_dir = os.path.join(self.temp_dir, "diffusion_ckpt", self.dataset_name)
         self.synthetic_dir = os.path.join(self.temp_dir, "synthetic", self.dataset_name)
         
-        os.makedirs(self.info_dir, exist_ok=True)
         os.makedirs(self.dataset_dir, exist_ok=True)
+        os.makedirs(os.path.join(self.data_dir, "Info"), exist_ok=True)  # For backward compatibility
         os.makedirs(self.vae_dir, exist_ok=True)
         os.makedirs(self.diffusion_dir, exist_ok=True)
         os.makedirs(self.synthetic_dir, exist_ok=True)
@@ -183,14 +184,13 @@ class TabSynWrapper:
             "idx_name_mapping": idx_name_mapping
         }
         
-        # Write metadata to JSON file
-        json_path = os.path.join(self.info_dir, f"{self.dataset_name}.json")
-        with open(json_path, 'w') as f:
+        # Write metadata to JSON file - needed to be in dataset_dir as info.json
+        with open(self.info_file, 'w') as f:
             json.dump(metadata, f, indent=4)
         
         if self.verbose:
             print(f"Data prepared for TabSyn. CSV saved to {csv_path}")
-            print(f"Metadata saved to {json_path}")
+            print(f"Metadata saved to {self.info_file}")
             print(f"Numerical columns: {len(num_col_idx)}")
             print(f"Categorical columns: {len(cat_col_idx)}")
             print(f"Task type: {task_type}")
@@ -228,8 +228,8 @@ class TabSynWrapper:
                     '--dataname', self.dataset_name,
                     '--method', 'vae',
                     '--mode', 'train',
-                    '--epoch', str(self.epochs),
-                    '--device', self.device
+                    '--epochs', str(self.epochs),
+                    '--gpu', '0'  # TabSyn doesn't accept --device directly
                 ]
                 
                 if self.verbose:
@@ -251,8 +251,8 @@ class TabSynWrapper:
                     '--dataname', self.dataset_name,
                     '--method', 'tabsyn',
                     '--mode', 'train',
-                    '--epoch', str(self.epochs),
-                    '--device', self.device
+                    '--epochs', str(self.epochs),
+                    '--gpu', '0'  # TabSyn doesn't accept --device directly
                 ]
                 
                 if self.verbose:
@@ -335,8 +335,8 @@ class TabSynWrapper:
                     '--dataname', self.dataset_name,
                     '--method', 'tabsyn',
                     '--mode', 'sample',
-                    '--samples', str(n_samples),
-                    '--device', self.device,
+                    '--num-samples', str(n_samples),  # Correct parameter name
+                    '--gpu', '0',  # TabSyn doesn't accept --device directly
                     '--save_path', os.path.join(self.synthetic_dir, 'tabsyn.csv')
                 ]
                 
