@@ -216,6 +216,33 @@ class TabSynWrapper:
                 tabsyn_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tabsyn')
                 os.chdir(tabsyn_dir)
                 
+                # TabSyn expects data in a relative path to the current working directory
+                # We need to create the expected directory structure in the current directory
+                local_data_dir = os.path.join(os.getcwd(), 'data', self.dataset_name)
+                os.makedirs(local_data_dir, exist_ok=True)
+                
+                # Copy the dataset CSV and info.json to the expected location
+                import shutil
+                try:
+                    # Copy CSV file
+                    shutil.copy(
+                        os.path.join(self.dataset_dir, f"{self.dataset_name}.csv"),
+                        os.path.join(local_data_dir, f"{self.dataset_name}.csv")
+                    )
+                    
+                    # Copy info.json
+                    shutil.copy(
+                        self.info_file,
+                        os.path.join(local_data_dir, "info.json")
+                    )
+                    
+                    if self.verbose:
+                        print(f"Copied data files to TabSyn's expected location: {local_data_dir}")
+                except Exception as e:
+                    if self.verbose:
+                        print(f"Error copying data files: {e}")
+                    raise
+                
                 # First train the VAE
                 if self.verbose:
                     print("Training TabSyn VAE model...")
@@ -327,6 +354,34 @@ class TabSynWrapper:
                 # Change to TabSyn directory
                 tabsyn_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tabsyn')
                 os.chdir(tabsyn_dir)
+                
+                # Make sure the data files are still where TabSyn expects them
+                local_data_dir = os.path.join(os.getcwd(), 'data', self.dataset_name)
+                if not os.path.exists(os.path.join(local_data_dir, "info.json")):
+                    # Need to recreate the expected directory structure again
+                    os.makedirs(local_data_dir, exist_ok=True)
+                    
+                    # Copy the dataset CSV and info.json to the expected location
+                    import shutil
+                    try:
+                        # Copy CSV file
+                        shutil.copy(
+                            os.path.join(self.dataset_dir, f"{self.dataset_name}.csv"),
+                            os.path.join(local_data_dir, f"{self.dataset_name}.csv")
+                        )
+                        
+                        # Copy info.json
+                        shutil.copy(
+                            self.info_file,
+                            os.path.join(local_data_dir, "info.json")
+                        )
+                        
+                        if self.verbose:
+                            print(f"Copied data files to TabSyn's expected location: {local_data_dir}")
+                    except Exception as e:
+                        if self.verbose:
+                            print(f"Error copying data files: {e}")
+                        raise
                 
                 # Run TabSyn's sample function using subprocess
                 sample_cmd = [
