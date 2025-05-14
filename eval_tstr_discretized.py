@@ -441,8 +441,9 @@ def train_great(X_train, y_train, batch_size=1, epochs=1):
 def train_tabsyn(X_train, y_train, epochs=50, random_seed=42):
     """Train the TabSyn tabular data synthesizer from Amazon Science
     
-    TabSyn is a tabular data synthesis method that uses a GAN architecture
-    with a pre-trained transformer encoder and a distribution-aware decoder.
+    TabSyn is a tabular data synthesis method that uses a two-stage VAE+Diffusion approach:
+    1. VAE (Variational Autoencoder) learns latent representations of mixed-type tabular data
+    2. Diffusion model generates new data points in the latent space
     
     Parameters:
     -----------
@@ -459,6 +460,16 @@ def train_tabsyn(X_train, y_train, epochs=50, random_seed=42):
         return None
         
     try:
+        # Import our improved TabSyn wrapper
+        try:
+            # Try to import directly first
+            from tabsyn_wrapper import TabSynWrapper
+        except ImportError:
+            # If that fails, try from the full path
+            import sys
+            sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+            from tabsyn_wrapper import TabSynWrapper
+        
         # Prepare data for TabSyn (we need to combine X and y)
         combined_data = pd.concat([X_train, y_train], axis=1)
         
@@ -468,9 +479,9 @@ def train_tabsyn(X_train, y_train, epochs=50, random_seed=42):
             if len(np.unique(combined_data[col])) < 10:  # Heuristic for categorical columns
                 categorical_cols.append(col)
         
-        # Initialize TabularGAN with TabSyn and proper random seed support
+        # Initialize TabSynWrapper with proper VAE+Diffusion implementation
         print(f"Training TabSyn with {epochs} epochs and random_seed={random_seed}")
-        tabsyn_model = TabularGAN(
+        tabsyn_model = TabSynWrapper(
             train_data=combined_data,
             categorical_columns=categorical_cols,
             epochs=epochs,
@@ -661,7 +672,7 @@ def generate_great_synthetic_data(great_model, train_data, n_samples=None):
 
 
 def generate_tabsyn_synthetic_data(tabsyn_model, train_data, n_samples=None):
-    """Generate synthetic data from TabSyn model"""
+    """Generate synthetic data from TabSyn model using our improved wrapper"""
     if not TABSYN_AVAILABLE or tabsyn_model is None:
         return None
 
@@ -669,6 +680,11 @@ def generate_tabsyn_synthetic_data(tabsyn_model, train_data, n_samples=None):
         n_samples = len(train_data)
 
     try:
+        # Check if we're using the TabSynWrapper
+        is_wrapper = hasattr(tabsyn_model, '__class__') and (
+            tabsyn_model.__class__.__name__ == 'TabSynWrapper'
+        )
+        
         # For M1/M2 Macs, generate in smaller batches for memory management
         import os
         if hasattr(os, 'uname') and os.uname().machine == 'arm64' and n_samples > 500:
