@@ -29,6 +29,8 @@ import argparse
 from tqdm import tqdm
 from scipy.io.arff import loadarff
 
+device = "cuda" if torch.cuda.is_available() else "cpu"
+print(f"CUDA available: {torch.cuda.is_available()}. Using device: {device}")
 # Suppress warnings and verbose logs
 warnings.filterwarnings("ignore")
 logging.getLogger('tensorflow').setLevel(logging.ERROR)
@@ -342,19 +344,21 @@ def train_great(X_train, y_train, batch_size=1, epochs=1):
 
     try:
         # Initiallize and train GReaT model
-
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        print(f"CUDA available: {torch.cuda.is_available()}. Using device: {device}")
         # #only use this if use non MPS
-        # great_model = GReaT(llm='distilgpt2', batch_size=32, epochs=50, fp16=True,
-        #                     metric_for_best_model="accuracy")
+        great_model = GReaT(llm='distilgpt2', batch_size=2, epochs=10, fp16=True ,gradient_accumulation_steps=8,
+                            metric_for_best_model="accuracy")
 
         #otherwise for Mac, use this
-        great_model = GReaT(llm='unsloth/Llama-3.2-1B', batch_size=batch_size, epochs=epochs,
-                            metric_for_best_model="accuracy",
-                            # # For weak machine, add more 3 following lines
-                            # dataloader_num_workers=0,  # 0 means no parallelism in data loading
-                            # gradient_accumulation_steps=8,
-                            # efficient_finetuning="lora"
-                            )
+        # great_model = GReaT(llm='unsloth/Llama-3.2-1B', batch_size=batch_size, epochs=epochs,
+        #                     metric_for_best_model="accuracy",
+        #                     # # For weak machine, add more 3 following lines
+        #                     dataloader_num_workers=0,  # 0 means no parallelism in data loading
+        #                     gradient_accumulation_steps=8,
+        #                     efficient_finetuning="lora",
+        #                     lora_target_modules=["q_proj", "v_proj"]
+        #                     )
         # Ensure the data is properly formatted
         if isinstance(y_train, pd.DataFrame):
             y_series = y_train.iloc[:, 0] if y_train.shape[1] == 1 else y_train
