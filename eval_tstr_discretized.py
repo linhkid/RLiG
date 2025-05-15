@@ -181,7 +181,22 @@ def preprocess_data(X, y, discretize=True, model_name=None):
     model_name : str, optional
         Name of the model being trained, used for model-specific preprocessing decisions
     """
-    # Identify column types
+    # First, handle missing values
+    # Check if there are any missing values
+    if X.isnull().any().any():
+        print("Handling missing values in the dataset...")
+        
+        # For categorical columns, fill with the most frequent value
+        for col in X.select_dtypes(include=['object']).columns:
+            X[col] = X[col].fillna(X[col].mode()[0])
+            
+        # For numeric columns, fill with the median
+        for col in X.select_dtypes(include=['number']).columns:
+            X[col] = X[col].fillna(X[col].median())
+            
+        print("Missing values have been imputed")
+    
+    # Identify column types after imputation
     continuous_cols = X.select_dtypes(include=['number']).columns
     categorical_cols = X.select_dtypes(include=['object']).columns
     print("Continuous columns: ", continuous_cols)
@@ -226,6 +241,13 @@ def preprocess_data(X, y, discretize=True, model_name=None):
     X_transformed_df = pd.DataFrame(X_transformed, columns=continuous_cols.tolist() + categorical_cols.tolist())
 
     # Handle target variable
+    if y.isnull().any().any():
+        print("Handling missing values in target variable...")
+        if y.dtypes[0] == 'object':
+            y = y.fillna(y.mode()[0])
+        else:
+            y = y.fillna(y.median())
+    
     if y.dtypes[0] == 'object':
         label_encoder = LabelEncoder()
         y_transformed = pd.DataFrame(label_encoder.fit_transform(y.values.ravel()), columns=y.columns)
@@ -247,6 +269,29 @@ def load_dataset(name, dataset_info):
             y = data.data.targets
             # Change the name of y dataframe to avoid duplicate "class" keyword
             y.columns = ["target"]
+            
+            # Special handling for Credit dataset which is known to have NaN values
+            if name == "Credit":
+                print(f"Special handling for {name} dataset")
+                # Check for missing values
+                missing_X = X.isnull().sum().sum()
+                missing_y = y.isnull().sum().sum()
+                print(f"Missing values detected: {missing_X} in features, {missing_y} in target")
+                
+                # Drop rows with NaN values if there are not too many
+                if missing_X + missing_y > 0 and missing_X + missing_y < len(X) * 0.1:  # If less than 10% are missing
+                    print(f"Dropping {missing_X + missing_y} rows with missing values")
+                    # Combine X and y for dropping rows with any NaN
+                    combined = pd.concat([X, y], axis=1)
+                    combined_clean = combined.dropna()
+                    
+                    # Split back to X and y
+                    X = combined_clean.iloc[:, :-1]
+                    y = combined_clean.iloc[:, -1:].copy()
+                    y.columns = ["target"]
+                    
+                    print(f"After dropping rows: X shape = {X.shape}, y shape = {y.shape}")
+            
             return X, y
         except Exception as e:
             print(f"Error loading UCI dataset {name} (id={dataset_info}): {e}")
@@ -255,6 +300,20 @@ def load_dataset(name, dataset_info):
         try:
             if dataset_info.endswith(".csv"):
                 df = pd.read_csv(dataset_info)
+                
+                # Check for NaN values
+                if df.isnull().any().any():
+                    print(f"Dataset {name} has missing values. Handling...")
+                    # For Credit Card dataset specifically
+                    if "Credit" in name or "credit" in name or "UCI_Credit_Card.csv" in dataset_info:
+                        print(f"Special handling for Credit dataset")
+                        # Drop rows with NaN if there are not too many
+                        missing_count = df.isnull().sum().sum()
+                        if missing_count < len(df) * 0.1:  # If less than 10% are missing
+                            print(f"Dropping {missing_count} rows with missing values")
+                            df = df.dropna()
+                        # Otherwise, we'll use imputation in the preprocess_data function
+                
                 X = df.iloc[:, :-1]
                 # Change the name of columns to avoid "-" to parsing error
                 X.columns = [col.replace('-', '_') for col in X.columns]
@@ -265,6 +324,17 @@ def load_dataset(name, dataset_info):
             else:
                 # Read arff file
                 df, meta = read_arff_file(dataset_info)
+                
+                # Check for NaN values
+                if df.isnull().any().any():
+                    print(f"ARFF file {name} has missing values. Handling...")
+                    # Drop rows with NaN if there are not too many
+                    missing_count = df.isnull().sum().sum()
+                    if missing_count < len(df) * 0.1:  # If less than 10% are missing
+                        print(f"Dropping {missing_count} rows with missing values")
+                        df = df.dropna()
+                    # Otherwise, we'll use imputation in the preprocess_data function
+                
                 if 'class' in df.columns:
                     # Encode categorical variables
                     X = df.drop('class', axis=1)
