@@ -410,10 +410,43 @@ def train_ctgan(X_train, discrete_columns=None, epochs=100, batch_size=500):
         if not isinstance(X_train, pd.DataFrame):
             X_train = pd.DataFrame(X_train)
         
-        # Workaround for memory issues: use smaller dataframe
-        if len(X_train) > 1000:
-            print(f"Large dataset detected ({len(X_train)} rows). Using 1000-row sample for CTGAN training.")
-            X_train = X_train.sample(1000, random_state=42)
+        # For extremely large datasets, use stratified sampling to maintain class distribution
+        if len(X_train) > 100000:  # Only sub-sample for very large datasets
+            print(f"Very large dataset detected ({len(X_train)} rows). Using stratified sampling for CTGAN training.")
+            
+            # Get target column if it exists in the dataframe
+            target_col = None
+            for col in X_train.columns:
+                if col.lower() in ['target', 'label', 'class', 'y']:
+                    target_col = col
+                    break
+            
+            # If we have a target column, use stratified sampling
+            if target_col:
+                # Use sklearn's stratified sampling
+                from sklearn.model_selection import train_test_split
+                
+                # Get features and target
+                X = X_train.drop(columns=[target_col])
+                y = X_train[target_col]
+                
+                # Use stratified sampling to get 20% of data (or 10,000 samples, whichever is larger)
+                sample_size = max(10000, int(0.2 * len(X_train)))
+                _, X_sampled, _, y_sampled = train_test_split(
+                    X, y, 
+                    test_size=min(sample_size / len(X_train), 0.8),  # Take at most 80% of data
+                    stratify=y,
+                    random_state=42
+                )
+                
+                # Recombine features and target
+                X_train = pd.concat([X_sampled, y_sampled], axis=1)
+                print(f"Using {len(X_train)} stratified samples for CTGAN training.")
+            else:
+                # If no target column, use simple random sampling
+                sample_size = max(10000, int(0.2 * len(X_train)))
+                X_train = X_train.sample(min(sample_size, len(X_train)), random_state=42)
+                print(f"Using {len(X_train)} random samples for CTGAN training.")
         
         # Identify categorical columns if not provided
         if discrete_columns is None:
@@ -457,10 +490,12 @@ def train_ctabgan(X_train, y_train, categorical_columns=None, epochs=50):
         return None
         
     try:
-        # For small datasets only to avoid timeouts
-        if len(X_train) > 1000:
-            print(f"Dataset too large for CTABGAN in this evaluation framework. Sampling 1000 rows with stratification.")
-            # Sample the data to avoid memory issues, use stratified sampling to ensure all classes have enough samples
+        # For extremely large datasets, use stratified sampling to maintain performance
+        if len(X_train) > 100000:  # Only subsample for very large datasets
+            print(f"Very large dataset detected ({len(X_train)} rows). Using stratified sampling for CTABGAN training.")
+            
+            # Standard practice for these models is to use a large enough sample
+            # that represents the data distribution well
             
             # Check class distribution
             if isinstance(y_train, pd.DataFrame):
@@ -471,19 +506,22 @@ def train_ctabgan(X_train, y_train, categorical_columns=None, epochs=50):
             class_counts = y_values.value_counts()
             min_class_count = class_counts.min()
             
-            # If the minimum class count is very low, we need to ensure we have enough samples of each class
+            # Use sklearn's stratified sampling
+            from sklearn.model_selection import train_test_split
+            
+            # Calculate appropriate sample size (20% of data or at least 10,000 samples)
+            sample_size = max(10000, int(0.2 * len(X_train)))
+            
+            # Ensure we have at least 5 samples from each class
             if min_class_count < 5:
-                print(f"Warning: Minimum class count is very low ({min_class_count}). Using stratified sampling.")
-                # Use stratified sampling
+                print(f"Warning: Minimum class count is very low ({min_class_count}). Using special sampling strategy.")
+                
                 try:
-                    from sklearn.model_selection import train_test_split
                     # Keep all instances of rare classes and sample from common classes
                     rare_classes = class_counts[class_counts < 5].index.tolist()
                     
-                    # If there are too many rare classes, sample at least 2 from each class
-                    if len(rare_classes) > 20:  # Arbitrary threshold
-                        # Sample with replacement to ensure at least 2 samples per class
-                        sample_size = min(1000, len(X_train))
+                    # If there are too many rare classes, ensure at least 2 samples per class
+                    if len(rare_classes) > 50:  # More than 50 rare classes is unusual
                         indices = []
                         
                         # First, ensure at least 2 samples from each class
@@ -494,80 +532,106 @@ def train_ctabgan(X_train, y_train, categorical_columns=None, epochs=50):
                                 indices.extend([class_indices[0], class_indices[0]])  # Duplicate the single instance
                             else:
                                 # Take at least 2 samples
-                                sample_indices = np.random.choice(class_indices, size=min(2, len(class_indices)), replace=False)
+                                n_samples = max(2, min(5, len(class_indices)))  # Take 2-5 samples from each class
+                                sample_indices = np.random.choice(class_indices, size=n_samples, replace=False)
                                 indices.extend(sample_indices)
                         
-                        # Fill the rest with random samples
+                        # Fill the rest with stratified samples up to desired sample size
                         if len(indices) < sample_size:
-                            remaining = sample_size - len(indices)
-                            # Exclude indices already selected
-                            available_indices = [i for i in range(len(X_train)) if i not in indices]
-                            if available_indices:
-                                extra_indices = np.random.choice(available_indices, 
-                                                                size=min(remaining, len(available_indices)), 
-                                                                replace=False)
-                                indices.extend(extra_indices)
-                        
-                        # Trim if we have too many
-                        indices = indices[:sample_size]
-                        
+                            # Create mask for indices already selected
+                            selected_mask = np.zeros(len(X_train), dtype=bool)
+                            selected_mask[indices] = True
+                            
+                            # Get remaining data
+                            X_remaining = X_train[~selected_mask]
+                            y_remaining = y_values[~selected_mask]
+                            
+                            if len(y_remaining) > 0:
+                                # Calculate how many more samples we need
+                                remaining_size = min(sample_size - len(indices), len(X_remaining))
+                                
+                                if remaining_size > 0:
+                                    # Use stratified sampling for the rest
+                                    _, X_extra, _, y_extra = train_test_split(
+                                        X_remaining, y_remaining,
+                                        test_size=remaining_size/len(X_remaining),
+                                        stratify=y_remaining if len(np.unique(y_remaining)) > 1 else None,
+                                        random_state=42
+                                    )
+                                    
+                                    # Combine with our selected indices
+                                    extra_indices = X_extra.index.tolist()
+                                    indices.extend(extra_indices)
                     else:
-                        # Keep all rare classes and sample from others
+                        # Get indices of all rare classes
                         rare_indices = y_values[y_values.isin(rare_classes)].index.tolist()
                         
-                        # Determine how many common class samples we can include
-                        remaining_slots = 1000 - len(rare_indices)
+                        # Get indices of common classes
+                        common_classes = [c for c in class_counts.index if c not in rare_classes]
+                        common_indices = y_values[y_values.isin(common_classes)].index.tolist()
                         
-                        if remaining_slots > 0:
-                            # Get indices of common classes
-                            common_indices = y_values[~y_values.isin(rare_classes)].index.tolist()
-                            
-                            # Sample from common classes
-                            sampled_common = np.random.choice(common_indices, 
-                                                            size=min(remaining_slots, len(common_indices)), 
-                                                            replace=False)
+                        # Determine how many samples to take from common classes
+                        remaining_slots = sample_size - len(rare_indices)
+                        
+                        if remaining_slots > 0 and common_indices:
+                            # Use stratified sampling for common classes
+                            common_y = y_values.loc[common_indices]
+                            _, sampled_common_indices = train_test_split(
+                                common_indices,
+                                test_size=min(remaining_slots/len(common_indices), 1.0),
+                                stratify=common_y if len(np.unique(common_y)) > 1 else None,
+                                random_state=42
+                            )
                             
                             # Combine rare and sampled common indices
-                            indices = rare_indices + sampled_common.tolist()
+                            indices = rare_indices + sampled_common_indices.tolist()
                         else:
-                            # If we have too many rare classes, sample from them
-                            indices = np.random.choice(rare_indices, size=1000, replace=False)
+                            # Just use the rare indices
+                            indices = rare_indices
                     
-                    # Get the sampled data
-                    X_train = X_train.iloc[indices]
+                    # Sample the data
+                    X_train = X_train.loc[indices]
                     if isinstance(y_train, pd.DataFrame):
-                        y_train = y_train.iloc[indices]
+                        y_train = y_train.loc[indices]
                     else:
-                        y_train = y_train.iloc[indices]
-                        
-                    # Verify we have at least 2 samples of each class in the result
-                    if isinstance(y_train, pd.DataFrame):
-                        result_counts = y_train.iloc[:, 0].value_counts()
-                    else:
-                        result_counts = y_train.value_counts()
-                        
-                    min_result_count = result_counts.min()
-                    if min_result_count < 2:
-                        print(f"Warning: After sampling, minimum class count is still {min_result_count}.")
-                        print("Some classes may be excluded during training.")
-                        
+                        y_train = y_train.loc[indices]
+                    
+                    print(f"Using {len(X_train)} samples with special class balancing for CTABGAN training.")
                 except Exception as e:
-                    print(f"Error during stratified sampling: {e}")
-                    # Fall back to simple random sampling
-                    indices = np.random.choice(len(X_train), 1000, replace=False)
-                    X_train = X_train.iloc[indices]
+                    print(f"Error during special sampling: {e}")
+                    # Fall back to regular stratified sampling
+                    X_indices = list(range(len(X_train)))
+                    _, sampled_indices = train_test_split(
+                        X_indices, 
+                        test_size=min(sample_size/len(X_train), 0.8),
+                        stratify=y_values if len(np.unique(y_values)) > 1 else None,
+                        random_state=42
+                    )
+                    
+                    X_train = X_train.iloc[sampled_indices]
                     if isinstance(y_train, pd.DataFrame):
-                        y_train = y_train.iloc[indices]
+                        y_train = y_train.iloc[sampled_indices]
                     else:
-                        y_train = y_train.iloc[indices]
+                        y_train = y_train.iloc[sampled_indices]
+                    
+                    print(f"Using {len(X_train)} stratified samples for CTABGAN training.")
             else:
-                # If class distribution is ok, use simple random sampling
-                indices = np.random.choice(len(X_train), 1000, replace=False)
-                X_train = X_train.iloc[indices]
+                # Normal stratified sampling
+                X_indices = list(range(len(X_train)))
+                _, sampled_indices = train_test_split(
+                    X_indices, 
+                    test_size=min(sample_size/len(X_train), 0.8),
+                    stratify=y_values if len(np.unique(y_values)) > 1 else None,
+                    random_state=42
+                )
+                
+                X_train = X_train.iloc[sampled_indices]
                 if isinstance(y_train, pd.DataFrame):
-                    y_train = y_train.iloc[indices]
+                    y_train = y_train.iloc[sampled_indices]
                 else:
-                    y_train = y_train.iloc[indices]
+                    y_train = y_train.iloc[sampled_indices]
+                
+                print(f"Using {len(X_train)} stratified samples for CTABGAN training.")
         
         # Convert X_train to DataFrame if it's not already
         if not isinstance(X_train, pd.DataFrame):
