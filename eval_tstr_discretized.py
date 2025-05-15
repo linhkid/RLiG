@@ -410,9 +410,14 @@ def train_ctgan(X_train, discrete_columns=None, epochs=100, batch_size=500):
         if not isinstance(X_train, pd.DataFrame):
             X_train = pd.DataFrame(X_train)
         
-        # For extremely large datasets, use stratified sampling to maintain class distribution
-        if len(X_train) > 100000:  # Only sub-sample for very large datasets
-            print(f"Very large dataset detected ({len(X_train)} rows). Using stratified sampling for CTGAN training.")
+
+        # Small: =< 15,000 rows
+        # Medium: 20,000 to 50,000 rows
+        # Large: >= 50,000 rows
+        
+        # For large datasets, use stratified sampling
+        if len(X_train) >= 50000:  # Only sub-sample for large datasets per paper definition
+            print(f"Large dataset detected ({len(X_train)} rows). Using stratified sampling for CTGAN training.")
             
             # Get target column if it exists in the dataframe
             target_col = None
@@ -430,23 +435,23 @@ def train_ctgan(X_train, discrete_columns=None, epochs=100, batch_size=500):
                 X = X_train.drop(columns=[target_col])
                 y = X_train[target_col]
                 
-                # Use stratified sampling to get 20% of data (or 10,000 samples, whichever is larger)
-                sample_size = max(10000, int(0.2 * len(X_train)))
+                # For large datasets, take 30% or 25,000 samples, whichever is larger
+                sample_size = max(25000, int(0.3 * len(X_train)))
                 _, X_sampled, _, y_sampled = train_test_split(
                     X, y, 
-                    test_size=min(sample_size / len(X_train), 0.8),  # Take at most 80% of data
+                    test_size=min(sample_size / len(X_train), 0.5),  # Take at most 50% of data
                     stratify=y,
                     random_state=42
                 )
                 
                 # Recombine features and target
                 X_train = pd.concat([X_sampled, y_sampled], axis=1)
-                print(f"Using {len(X_train)} stratified samples for CTGAN training.")
+                print(f"Using {len(X_train)} stratified samples for CTGAN training (as per paper's methodology).")
             else:
                 # If no target column, use simple random sampling
-                sample_size = max(10000, int(0.2 * len(X_train)))
+                sample_size = max(25000, int(0.3 * len(X_train)))
                 X_train = X_train.sample(min(sample_size, len(X_train)), random_state=42)
-                print(f"Using {len(X_train)} random samples for CTGAN training.")
+                print(f"Using {len(X_train)} random samples for CTGAN training (as per paper's methodology).")
         
         # Identify categorical columns if not provided
         if discrete_columns is None:
@@ -490,9 +495,13 @@ def train_ctabgan(X_train, y_train, categorical_columns=None, epochs=50):
         return None
         
     try:
-        # For extremely large datasets, use stratified sampling to maintain performance
-        if len(X_train) > 100000:  # Only subsample for very large datasets
-            print(f"Very large dataset detected ({len(X_train)} rows). Using stratified sampling for CTABGAN training.")
+        # Small: < 15,000 rows
+        # Medium: 20,000 to 50,000 rows
+        # Large: >= 50,000 rows
+        
+        # For large datasets, use stratified sampling
+        if len(X_train) >= 50000:  # Only subsample for large datasets per paper definition
+            print(f"Large dataset detected ({len(X_train)} rows). Using stratified sampling for CTABGAN training.")
             
             # Standard practice for these models is to use a large enough sample
             # that represents the data distribution well
@@ -934,6 +943,66 @@ def train_tabsyn(X_train, y_train, epochs=50, random_seed=42):
     except Exception as e:
         print(f"Error training TabSyn model: {e}")
         return None
+
+
+# ============= SYNTHETIC DATA SAVING HELPER =============
+
+def save_synthetic_data(synthetic_data, model_name, dataset_name, directory="train_data"):
+    """Save synthetic data according to dataset size classifications in the paper
+    
+    Parameters:
+    -----------
+    synthetic_data : pandas.DataFrame
+        The synthetic data to save
+    model_name : str
+        The name of the model (e.g., 'ganblr', 'ctgan')
+    dataset_name : str
+        The name of the dataset
+    directory : str, optional
+        The directory to save the data to
+    """
+    os.makedirs(directory, exist_ok=True)
+    file_path = f"{directory}/{model_name}_{dataset_name}_synthetic.csv"
+
+    # Small: =< 15,000 rows
+    # Medium: 20,000 to 50,000 rows
+    # Large: >= 50,000 rows
+    
+    # For small and medium datasets, save all synthetic data
+    # For large datasets, save a meaningful sample
+    if len(synthetic_data) < 50000:
+        # Small or medium dataset - save everything
+        synthetic_data.to_csv(file_path, index=False)
+        print(f"Saved complete {model_name.upper()} synthetic dataset ({len(synthetic_data)} samples) to {file_path}")
+    else:
+        # Large dataset - save a stratified sample
+        # Try to find the target column for stratified sampling
+        target_col = None
+        for col in synthetic_data.columns:
+            if col.lower() in ['target', 'label', 'class', 'y']:
+                target_col = col
+                break
+                
+        # For large synthetic datasets, save a stratified sample of 25,000
+        if target_col and len(np.unique(synthetic_data[target_col])) > 1:
+            from sklearn.model_selection import train_test_split
+            
+            # Use stratified sampling
+            _, sampled_data = train_test_split(
+                synthetic_data, 
+                test_size=min(25000/len(synthetic_data), 0.5),  # Take at most 50% or 25,000
+                stratify=synthetic_data[target_col],
+                random_state=42
+            )
+        else:
+            # Simple random sample if no target column or only one class
+            sample_size = min(25000, len(synthetic_data))
+            sampled_data = synthetic_data.sample(sample_size, random_state=42)
+            
+        sampled_data.to_csv(file_path, index=False)
+        print(f"Saved representative sample of {model_name.upper()} synthetic data ({len(sampled_data)} of {len(synthetic_data)} samples) to {file_path}")
+    
+    return file_path
 
 
 # ============= SYNTHETIC DATA GENERATION FUNCTIONS =============
@@ -1575,9 +1644,8 @@ def train_and_evaluate_ganblr(train_data, X_test, y_test, model_results, n_sampl
                 bn_ts_viz.draw(f"img/ganblr_{dataset_name}_network.png", prog="dot")
                 print(f"GANBLR network visualization saved to img/ganblr_{dataset_name}_network.png")
                 
-                # Save synthetic data sample
-                ts_synthetic.head(1000).to_csv(f"train_data/ganblr_{dataset_name}_synthetic.csv", index=False)
-                print(f"GANBLR synthetic data sample saved to train_data/ganblr_{dataset_name}_synthetic.csv")
+                # Save synthetic data using the helper function
+                save_synthetic_data(ts_synthetic, "ganblr", dataset_name)
             except Exception as e:
                 print(f"Error saving GANBLR outputs: {e}")
         except Exception as e:
@@ -1639,9 +1707,8 @@ def train_and_evaluate_ganblrpp(train_data, X_test, y_test, model_results, n_sam
                 bn_hc_viz.draw(f"img/ganblrpp_{dataset_name}_network.png", prog="dot")
                 print(f"GANBLR++ network visualization saved to img/ganblrpp_{dataset_name}_network.png")
                 
-                # Save synthetic data sample
-                hc_synthetic.head(1000).to_csv(f"train_data/ganblrpp_{dataset_name}_synthetic.csv", index=False)
-                print(f"GANBLR++ synthetic data sample saved to train_data/ganblrpp_{dataset_name}_synthetic.csv")
+                # Save synthetic data using the helper function
+                save_synthetic_data(hc_synthetic, "ganblrpp", dataset_name)
             except Exception as e:
                 print(f"Error saving GANBLR++ outputs: {e}")
         except Exception as e:
@@ -1701,9 +1768,8 @@ def train_and_evaluate_ctgan(X_train, y_train, X_test, y_test, model_results, n_
             # Create directory if it doesn't exist
             os.makedirs("train_data", exist_ok=True)
             
-            # Save synthetic data sample
-            ctgan_synthetic.head(1000).to_csv(f"train_data/ctgan_{dataset_name}_synthetic.csv", index=False)
-            print(f"CTGAN synthetic data sample saved to train_data/ctgan_{dataset_name}_synthetic.csv")
+            # Save synthetic data using the helper function
+            save_synthetic_data(ctgan_synthetic, "ctgan", dataset_name)
         except Exception as e:
             print(f"Error saving CTGAN synthetic data: {e}")
     except Exception as e:
@@ -1761,9 +1827,8 @@ def train_and_evaluate_ctabgan(X_train, y_train, X_test, y_test, model_results, 
             # Create directory if it doesn't exist
             os.makedirs("train_data", exist_ok=True)
             
-            # Save synthetic data sample
-            ctabgan_synthetic.head(1000).to_csv(f"train_data/ctabgan_{dataset_name}_synthetic.csv", index=False)
-            print(f"CTABGAN synthetic data sample saved to train_data/ctabgan_{dataset_name}_synthetic.csv")
+            # Save synthetic data using the helper function
+            save_synthetic_data(ctabgan_synthetic, "ctabgan", dataset_name)
         except Exception as e:
             print(f"Error saving CTABGAN synthetic data: {e}")
     except Exception as e:
@@ -1804,9 +1869,8 @@ def train_and_evaluate_nb(X_train, y_train, X_test, y_test, train_data, model_re
             # Create directory if it doesn't exist
             os.makedirs("train_data", exist_ok=True)
             
-            # Save synthetic data sample
-            nb_synthetic.head(1000).to_csv(f"train_data/nb_{dataset_name}_synthetic.csv", index=False)
-            print(f"Naive Bayes synthetic data sample saved to train_data/nb_{dataset_name}_synthetic.csv")
+            # Save synthetic data using the helper function
+            save_synthetic_data(nb_synthetic, "nb", dataset_name)
         except Exception as e:
             print(f"Error saving Naive Bayes synthetic data: {e}")
     except Exception as e:
@@ -1952,10 +2016,9 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
                             'bic': hc_bic
                         }
                         
-                        # Save synthetic data
+                        # Save synthetic data using the helper function
                         os.makedirs("train_data", exist_ok=True)
-                        hc_synthetic.head(1000).to_csv(f"train_data/ganblrpp_{name}_synthetic.csv", index=False)
-                        print(f"GANBLR++ synthetic data saved to train_data/ganblrpp_{name}_synthetic.csv")
+                        save_synthetic_data(hc_synthetic, "ganblrpp", name)
             except Exception as e:
                 print(f"Error generating GANBLR++ synthetic data: {e}")
                 
@@ -1988,10 +2051,9 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
                             'bic': ts_bic
                         }
                         
-                        # Save synthetic data
+                        # Save synthetic data using the helper function
                         os.makedirs("train_data", exist_ok=True)
-                        ts_synthetic.head(1000).to_csv(f"train_data/ganblr_{name}_synthetic.csv", index=False)
-                        print(f"GANBLR synthetic data saved to train_data/ganblr_{name}_synthetic.csv")
+                        save_synthetic_data(ts_synthetic, "ganblr", name)
             except Exception as e:
                 print(f"Error generating GANBLR synthetic data: {e}")
                 
@@ -2025,10 +2087,9 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
                             'data': ctgan_synthetic
                         }
                         
-                        # Save synthetic data
+                        # Save synthetic data using the helper function
                         os.makedirs("train_data", exist_ok=True)
-                        ctgan_synthetic.head(1000).to_csv(f"train_data/ctgan_{name}_synthetic.csv", index=False)
-                        print(f"CTGAN synthetic data saved to train_data/ctgan_{name}_synthetic.csv")
+                        save_synthetic_data(ctgan_synthetic, "ctgan", name)
             except Exception as e:
                 print(f"Error generating CTGAN synthetic data: {e}")
                 
@@ -2062,10 +2123,9 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
                             'data': ctabgan_synthetic
                         }
                         
-                        # Save synthetic data
+                        # Save synthetic data using the helper function
                         os.makedirs("train_data", exist_ok=True)
-                        ctabgan_synthetic.head(1000).to_csv(f"train_data/ctabgan_{name}_synthetic.csv", index=False)
-                        print(f"CTABGAN synthetic data saved to train_data/ctabgan_{name}_synthetic.csv")
+                        save_synthetic_data(ctabgan_synthetic, "ctabgan", name)
             except Exception as e:
                 print(f"Error generating CTABGAN synthetic data: {e}")
                 
@@ -2089,10 +2149,9 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
                             'bic': nb_bic
                         }
                         
-                        # Save synthetic data
+                        # Save synthetic data using the helper function
                         os.makedirs("train_data", exist_ok=True)
-                        nb_synthetic.head(1000).to_csv(f"train_data/nb_{name}_synthetic.csv", index=False)
-                        print(f"Naive Bayes synthetic data saved to train_data/nb_{name}_synthetic.csv")
+                        save_synthetic_data(nb_synthetic, "nb", name)
             except Exception as e:
                 print(f"Error generating Naive Bayes synthetic data: {e}")
                 
@@ -2167,10 +2226,9 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
                             'y_test': y_test_great
                         }
 
-                        # Save synthetic data
+                        # Save synthetic data using the helper function
                         os.makedirs("train_data", exist_ok=True)
-                        great_synthetic.head(1000).to_csv(f"train_data/great_{name}_synthetic.csv", index=False)
-                        print(f"GReaT synthetic data saved to train_data/great_{name}_synthetic.csv")
+                        save_synthetic_data(great_synthetic, "great", name)
             except Exception as e:
                 print(f"Error generating GReaT synthetic data: {e}")
                 
@@ -2195,10 +2253,9 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
                             'y_test': y_test_tabsyn
                         }
                         
-                        # Save synthetic data
+                        # Save synthetic data using the helper function
                         os.makedirs("train_data", exist_ok=True)
-                        tabsyn_synthetic.head(1000).to_csv(f"train_data/tabsyn_{name}_synthetic.csv", index=False)
-                        print(f"TabSyn synthetic data saved to train_data/tabsyn_{name}_synthetic.csv")
+                        save_synthetic_data(tabsyn_synthetic, "tabsyn", name)
             except Exception as e:
                 print(f"Error generating TabSyn synthetic data: {e}")
 
