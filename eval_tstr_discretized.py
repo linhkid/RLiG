@@ -98,6 +98,17 @@ except ImportError:
     CTGAN_AVAILABLE = False
 
 try:
+    # Add the current directory to the path to make imports work
+    import sys
+    if '.' not in sys.path:
+        sys.path.append('.')
+    from ctabgan.model.ctabgan import CTABGAN
+    CTABGAN_AVAILABLE = True
+except ImportError as e:
+    print(f"CTABGAN not available. CTABGAN model will be skipped. Error: {e}")
+    CTABGAN_AVAILABLE = False
+
+try:
     from ucimlrepo import fetch_ucirepo
     UCI_AVAILABLE = True
 except ImportError:
@@ -358,6 +369,102 @@ def train_ctgan(X_train, discrete_columns=None, epochs=100, batch_size=500):
         print(f"Error training CTGAN model: {e}")
         return None
 
+def train_ctabgan(X_train, y_train, categorical_columns=None, epochs=50):
+    """Train a CTABGAN model
+    
+    Parameters:
+    -----------
+    X_train : pandas.DataFrame
+        Training features
+    y_train : pandas.DataFrame or Series
+        Training targets
+    categorical_columns : list, optional
+        List of categorical column names
+    epochs : int
+        Number of training epochs
+    """
+    if not CTABGAN_AVAILABLE:
+        return None
+        
+    try:
+        # For small datasets only to avoid timeouts
+        if len(X_train) > 1000:
+            print(f"Dataset too large for CTABGAN in this evaluation framework. Sampling 1000 rows.")
+            # Sample the data to avoid memory issues
+            indices = np.random.choice(len(X_train), 1000, replace=False)
+            X_train = X_train.iloc[indices]
+            if isinstance(y_train, pd.DataFrame):
+                y_train = y_train.iloc[indices]
+            else:
+                y_train = y_train.iloc[indices]
+        
+        # Convert X_train to DataFrame if it's not already
+        if not isinstance(X_train, pd.DataFrame):
+            X_train = pd.DataFrame(X_train)
+            
+        # Combine X and y
+        target_name = y_train.name if hasattr(y_train, 'name') else "target"
+        if isinstance(y_train, pd.DataFrame):
+            if y_train.shape[1] == 1:
+                target_name = y_train.columns[0]
+                train_data = pd.concat([X_train, y_train], axis=1)
+            else:
+                # If y has multiple columns, use the first one
+                target_name = y_train.columns[0]
+                train_data = pd.concat([X_train, y_train.iloc[:, 0]], axis=1)
+        else:
+            # Convert Series to DataFrame
+            y_df = pd.DataFrame(y_train, columns=[target_name])
+            train_data = pd.concat([X_train, y_df], axis=1)
+        
+        # Create a temporary CSV file to use with CTABGAN
+        temp_csv_path = "temp_train_data.csv"
+        train_data.to_csv(temp_csv_path, index=False)
+        
+        # Use fewer epochs for Apple Silicon compatibility
+        import os
+        if hasattr(os, 'uname') and os.uname().machine == 'arm64':
+            print("Apple Silicon detected - using reduced settings for CTABGAN")
+            epochs = min(epochs, 5)  # Even fewer epochs on M1/M2
+        
+        # Identify categorical columns if not provided
+        if categorical_columns is None:
+            categorical_columns = []
+            for col in train_data.columns:
+                if train_data[col].dtype == 'object' or len(np.unique(train_data[col])) < 10:
+                    categorical_columns.append(col)
+        
+        # Identify integer columns
+        integer_columns = []
+        for col in train_data.columns:
+            if col not in categorical_columns and pd.api.types.is_integer_dtype(train_data[col]):
+                integer_columns.append(col)
+        
+        # Initialize CTABGAN model
+        print(f"Training CTABGAN with {epochs} epochs")
+        print(f"Categorical columns: {categorical_columns}")
+        print(f"Integer columns: {integer_columns}")
+        
+        # Define problem type (classification by default)
+        problem_type = {"Classification": target_name}
+        
+        ctabgan_model = CTABGAN(
+            raw_csv_path=temp_csv_path,
+            test_ratio=0.2,  # Keep consistent with the evaluation framework's test split
+            categorical_columns=categorical_columns,
+            integer_columns=integer_columns,
+            problem_type=problem_type,
+            epochs=epochs
+        )
+        
+        # Train the model
+        ctabgan_model.fit()
+        
+        return ctabgan_model
+    except Exception as e:
+        print(f"Error training CTABGAN model: {e}")
+        return None
+
 
 def train_rlig(X_train, y_train, episodes=2, epochs=5):
     """Train a RLiG model"""
@@ -604,6 +711,92 @@ def generate_ctgan_synthetic_data(ctgan_model, train_data, n_samples=None):
             print(f"Fallback also failed: {fallback_error}")
             return None
 
+def generate_ctabgan_synthetic_data(ctabgan_model, train_data, n_samples=None):
+    """Generate synthetic data from CTABGAN model
+    
+    Parameters:
+    -----------
+    ctabgan_model : CTABGAN
+        Trained CTABGAN model
+    train_data : pandas.DataFrame
+        Training data used for context
+    n_samples : int, optional
+        Number of samples to generate. If None, uses train_data length
+    """
+    if not CTABGAN_AVAILABLE or ctabgan_model is None:
+        return None
+        
+    if n_samples is None:
+        n_samples = len(train_data)
+    
+    try:
+        # CTABGAN's generate_samples() function generates data with the same size as the original dataset
+        # We need to adjust the approach to generate the requested number of samples
+        
+        # Calculate how many times we need to call generate_samples
+        batch_size = len(ctabgan_model.raw_df)
+        num_batches = (n_samples + batch_size - 1) // batch_size  # Ceiling division
+        
+        if num_batches > 1:
+            print(f"Generating {n_samples} samples in {num_batches} batches")
+            batches = []
+            for i in range(num_batches):
+                print(f"Generating batch {i+1}/{num_batches}")
+                batch = ctabgan_model.generate_samples()
+                # If it's the last batch and we need fewer samples
+                if i == num_batches - 1 and n_samples % batch_size != 0:
+                    batch = batch.head(n_samples % batch_size)
+                batches.append(batch)
+            synthetic_data = pd.concat(batches, ignore_index=True)
+        else:
+            # Generate samples and take only what we need
+            synthetic_data = ctabgan_model.generate_samples()
+            if n_samples < len(synthetic_data):
+                synthetic_data = synthetic_data.head(n_samples)
+        
+        # Ensure all columns have the correct types
+        # Convert any string columns to numeric if they should be numeric
+        for col in synthetic_data.columns:
+            # Skip the target column
+            if col == 'target':
+                continue
+                
+            # Try to convert to numeric if it's not already
+            if synthetic_data[col].dtype == 'object':
+                try:
+                    synthetic_data[col] = pd.to_numeric(synthetic_data[col])
+                except:
+                    # If conversion fails, leave as is
+                    pass
+                    
+        print(f"Generated {len(synthetic_data)} synthetic samples from CTABGAN")
+        return synthetic_data
+    except Exception as e:
+        print(f"Error generating synthetic data from CTABGAN: {e}")
+        
+        # Fallback: if sampling fails, try a simple approach
+        try:
+            print("Trying fallback generation approach")
+            synthetic_data = ctabgan_model.generate_samples()
+            if len(synthetic_data) > n_samples:
+                synthetic_data = synthetic_data.head(n_samples)
+                
+            # Same type conversion as above
+            for col in synthetic_data.columns:
+                if col == 'target':
+                    continue
+                if synthetic_data[col].dtype == 'object':
+                    try:
+                        synthetic_data[col] = pd.to_numeric(synthetic_data[col])
+                    except:
+                        pass
+                        
+            print(f"Generated {len(synthetic_data)} synthetic samples as fallback")
+            return synthetic_data
+        except Exception as fallback_error:
+            print(f"Fallback also failed: {fallback_error}")
+            return None
+
 
 def generate_great_synthetic_data(great_model, train_data, n_samples=None):
     """Generate synthetic data from GReaT model"""
@@ -736,6 +929,22 @@ def evaluate_tstr(synthetic_data, X_test, y_test, target_col='target'):
             # If target column isn't found, assume last column is target
             syn_X = synthetic_data.iloc[:, :-1]
             syn_y = synthetic_data.iloc[:, -1]
+        
+        # Ensure synthetic data has the same types as test data
+        for col in X_test.columns:
+            if col in syn_X.columns:
+                # Convert synthetic columns to the same type as test columns
+                try:
+                    syn_X[col] = syn_X[col].astype(X_test[col].dtype)
+                except:
+                    # If conversion fails, try to convert both to float
+                    try:
+                        syn_X[col] = syn_X[col].astype(float)
+                        if X_test[col].dtype != float:
+                            X_test[col] = X_test[col].astype(float)
+                    except:
+                        # If that still fails, just continue (will use available columns only)
+                        print(f"Warning: Could not convert column {col} to matching type")
             
         # Ensure column orders match exactly between synthetic and test data
         print(f"Synthetic X columns: {syn_X.columns.tolist()}")
@@ -784,8 +993,38 @@ def evaluate_tstr(synthetic_data, X_test, y_test, target_col='target'):
         
         results = {}
         
-        # Get feature categories for one-hot encoding
-        categories = [np.unique(np.concatenate([syn_X[col].unique(), X_test[col].unique()])) for col in X_test.columns]
+        # Fix data types for OneHotEncoder
+        # Convert all columns to numeric if possible
+        for col in syn_X.columns:
+            try:
+                syn_X[col] = pd.to_numeric(syn_X[col])
+                X_test[col] = pd.to_numeric(X_test[col])
+            except:
+                # If can't convert to numeric, will be treated as categorical by encoder
+                pass
+                
+        # Get feature categories for one-hot encoding (fixing numeric types)
+        categories = []
+        for col in X_test.columns:
+            try:
+                # Handling numeric types properly
+                if pd.api.types.is_numeric_dtype(syn_X[col]) and pd.api.types.is_numeric_dtype(X_test[col]):
+                    # For numeric columns, need to ensure all values are of the same type
+                    unique_vals = np.unique(np.concatenate([
+                        syn_X[col].astype(float).unique(), 
+                        X_test[col].astype(float).unique()
+                    ]))
+                else:
+                    # For categorical columns, handle as strings for consistency
+                    unique_vals = np.unique(np.concatenate([
+                        syn_X[col].astype(str).unique(), 
+                        X_test[col].astype(str).unique()
+                    ]))
+                categories.append(unique_vals)
+            except Exception as e:
+                print(f"Error processing column {col} for OneHotEncoder: {e}")
+                # Fallback: use union of unique values directly
+                categories.append(np.union1d(syn_X[col].unique(), X_test[col].unique()))
 
         for name, model in models.items():
             try:
@@ -1128,6 +1367,66 @@ def train_and_evaluate_ctgan(X_train, y_train, X_test, y_test, model_results, n_
         print(f"Error evaluating CTGAN model: {e}")
 
 
+def train_and_evaluate_ctabgan(X_train, y_train, X_test, y_test, model_results, n_samples, epochs=50):
+    """Train and evaluate CTABGAN model"""
+    if not CTABGAN_AVAILABLE:
+        return
+        
+    print("\n--------------------------------------------------")
+    print("EVALUATING CTABGAN")
+    print("--------------------------------------------------")
+    start_time = time.time()
+    try:
+        # Identify categorical columns
+        categorical_columns = []
+        for col in X_train.columns:
+            if X_train[col].dtype == 'object' or len(np.unique(X_train[col])) < 10:
+                categorical_columns.append(col)
+        
+        # Train CTABGAN
+        ctabgan_model = train_ctabgan(
+            X_train, 
+            y_train,
+            categorical_columns=categorical_columns,
+            epochs=epochs
+        )
+        ctabgan_time = time.time() - start_time
+        
+        if ctabgan_model is None:
+            return
+            
+        # Prepare train data for synthetic data generation
+        train_data = pd.concat([X_train, y_train], axis=1)
+        
+        # Generate synthetic data
+        ctabgan_synthetic = generate_ctabgan_synthetic_data(ctabgan_model, train_data, n_samples=n_samples)
+        
+        # TSTR evaluation
+        print("Performing TSTR evaluation for CTABGAN...")
+        ctabgan_tstr = evaluate_tstr(ctabgan_synthetic, X_test, y_test)
+        
+        # Store results
+        for model_name, acc in ctabgan_tstr.items():
+            model_results['metrics'][f'CTABGAN-{model_name}'] = acc
+        model_results['times']['CTABGAN'] = ctabgan_time
+        
+        print(f"CTABGAN - Time: {ctabgan_time:.2f}s")
+        
+        # Save synthetic data sample
+        dataset_name = model_results.get('dataset_name', 'unknown')
+        try:
+            # Create directory if it doesn't exist
+            os.makedirs("train_data", exist_ok=True)
+            
+            # Save synthetic data sample
+            ctabgan_synthetic.head(1000).to_csv(f"train_data/ctabgan_{dataset_name}_synthetic.csv", index=False)
+            print(f"CTABGAN synthetic data sample saved to train_data/ctabgan_{dataset_name}_synthetic.csv")
+        except Exception as e:
+            print(f"Error saving CTABGAN synthetic data: {e}")
+    except Exception as e:
+        print(f"Error evaluating CTABGAN model: {e}")
+
+
 def train_and_evaluate_nb(X_train, y_train, X_test, y_test, train_data, model_results, n_samples):
     """Train and evaluate Naive Bayes model"""
     print("\n--------------------------------------------------")
@@ -1209,7 +1508,7 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
     """
     # Default models to evaluate
     if models is None:
-        models = ['rlig', 'ganblr', 'ganblr++', 'ctgan', 'nb', 'great', 'tabsyn']
+        models = ['rlig', 'ganblr', 'ganblr++', 'ctgan', 'ctabgan', 'nb', 'great', 'tabsyn']
     
     # Set random seed for reproducibility
     np.random.seed(seed)
@@ -1389,6 +1688,43 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
                         print(f"CTGAN synthetic data saved to train_data/ctgan_{name}_synthetic.csv")
             except Exception as e:
                 print(f"Error generating CTGAN synthetic data: {e}")
+                
+        if 'ctabgan' in models:
+            print("\n-- Generating synthetic data for CTABGAN --")
+            try:
+                # Identify categorical columns
+                categorical_columns = []
+                for col in X_train.columns:
+                    if X_train[col].dtype == 'object' or len(np.unique(X_train[col])) < 10:
+                        categorical_columns.append(col)
+                
+                # Train CTABGAN
+                ctabgan_model = train_ctabgan(
+                    X_train, 
+                    y_train,
+                    categorical_columns=categorical_columns,
+                    epochs=ctgan_epochs  # Use the same parameter as CTGAN for consistency
+                )
+                
+                if ctabgan_model:
+                    # Prepare train data for synthetic data generation
+                    train_data_combined = pd.concat([X_train, y_train], axis=1)
+                    
+                    # Generate synthetic data
+                    ctabgan_synthetic = generate_ctabgan_synthetic_data(ctabgan_model, train_data_combined, n_samples=n_samples)
+                    
+                    if ctabgan_synthetic is not None:
+                        # Store in cache
+                        synthetic_data_cache[name]['models']['ctabgan'] = {
+                            'data': ctabgan_synthetic
+                        }
+                        
+                        # Save synthetic data
+                        os.makedirs("train_data", exist_ok=True)
+                        ctabgan_synthetic.head(1000).to_csv(f"train_data/ctabgan_{name}_synthetic.csv", index=False)
+                        print(f"CTABGAN synthetic data saved to train_data/ctabgan_{name}_synthetic.csv")
+            except Exception as e:
+                print(f"Error generating CTABGAN synthetic data: {e}")
                 
         if 'nb' in models:
             print("\n-- Generating synthetic data for Naive Bayes --")
@@ -1751,8 +2087,8 @@ def parse_args():
         "--models", 
         type=str, 
         nargs="+", 
-        default=['rlig', 'ganblr', 'ganblr++', 'ctgan', 'nb', 'great', 'tabsyn'],
-        help="List of models to evaluate. Options: rlig, ganblr, ganblr++, ctgan, nb, great, tabsyn"
+        default=['rlig', 'ganblr', 'ganblr++', 'ctgan', 'ctabgan', 'nb', 'great', 'tabsyn'],
+        help="List of models to evaluate. Options: rlig, ganblr, ganblr++, ctgan, ctabgan, nb, great, tabsyn"
     )
 
     """PokerHand: 158
@@ -1848,7 +2184,7 @@ def parse_args():
     parser.add_argument(
         "--small_ctgan", 
         action="store_true",
-        help="Use fewer epochs (10) for CTGAN to speed up training"
+        help="Use fewer epochs (10) for CTGAN and CTABGAN to speed up training"
     )
     
     parser.add_argument(
@@ -1935,7 +2271,7 @@ if __name__ == "__main__":
     # Apply small_ctgan option if specified
     if args.small_ctgan:
         args.ctgan_epochs = 10
-        print(f"Note: Using reduced CTGAN epochs ({args.ctgan_epochs}) for faster training")
+        print(f"Note: Using reduced CTGAN/CTABGAN epochs ({args.ctgan_epochs}) for faster training")
     
     # Run the TSTR comparison with specified models and parameters
     results = compare_models_tstr(
