@@ -389,14 +389,115 @@ def train_ctabgan(X_train, y_train, categorical_columns=None, epochs=50):
     try:
         # For small datasets only to avoid timeouts
         if len(X_train) > 1000:
-            print(f"Dataset too large for CTABGAN in this evaluation framework. Sampling 1000 rows.")
-            # Sample the data to avoid memory issues
-            indices = np.random.choice(len(X_train), 1000, replace=False)
-            X_train = X_train.iloc[indices]
+            print(f"Dataset too large for CTABGAN in this evaluation framework. Sampling 1000 rows with stratification.")
+            # Sample the data to avoid memory issues, use stratified sampling to ensure all classes have enough samples
+            
+            # Check class distribution
             if isinstance(y_train, pd.DataFrame):
-                y_train = y_train.iloc[indices]
+                y_values = y_train.iloc[:, 0]
             else:
-                y_train = y_train.iloc[indices]
+                y_values = y_train
+                
+            class_counts = y_values.value_counts()
+            min_class_count = class_counts.min()
+            
+            # If the minimum class count is very low, we need to ensure we have enough samples of each class
+            if min_class_count < 5:
+                print(f"Warning: Minimum class count is very low ({min_class_count}). Using stratified sampling.")
+                # Use stratified sampling
+                try:
+                    from sklearn.model_selection import train_test_split
+                    # Keep all instances of rare classes and sample from common classes
+                    rare_classes = class_counts[class_counts < 5].index.tolist()
+                    
+                    # If there are too many rare classes, sample at least 2 from each class
+                    if len(rare_classes) > 20:  # Arbitrary threshold
+                        # Sample with replacement to ensure at least 2 samples per class
+                        sample_size = min(1000, len(X_train))
+                        indices = []
+                        
+                        # First, ensure at least 2 samples from each class
+                        for class_val in class_counts.index:
+                            class_indices = y_values[y_values == class_val].index.tolist()
+                            # Sample with replacement if needed
+                            if len(class_indices) == 1:
+                                indices.extend([class_indices[0], class_indices[0]])  # Duplicate the single instance
+                            else:
+                                # Take at least 2 samples
+                                sample_indices = np.random.choice(class_indices, size=min(2, len(class_indices)), replace=False)
+                                indices.extend(sample_indices)
+                        
+                        # Fill the rest with random samples
+                        if len(indices) < sample_size:
+                            remaining = sample_size - len(indices)
+                            # Exclude indices already selected
+                            available_indices = [i for i in range(len(X_train)) if i not in indices]
+                            if available_indices:
+                                extra_indices = np.random.choice(available_indices, 
+                                                                size=min(remaining, len(available_indices)), 
+                                                                replace=False)
+                                indices.extend(extra_indices)
+                        
+                        # Trim if we have too many
+                        indices = indices[:sample_size]
+                        
+                    else:
+                        # Keep all rare classes and sample from others
+                        rare_indices = y_values[y_values.isin(rare_classes)].index.tolist()
+                        
+                        # Determine how many common class samples we can include
+                        remaining_slots = 1000 - len(rare_indices)
+                        
+                        if remaining_slots > 0:
+                            # Get indices of common classes
+                            common_indices = y_values[~y_values.isin(rare_classes)].index.tolist()
+                            
+                            # Sample from common classes
+                            sampled_common = np.random.choice(common_indices, 
+                                                            size=min(remaining_slots, len(common_indices)), 
+                                                            replace=False)
+                            
+                            # Combine rare and sampled common indices
+                            indices = rare_indices + sampled_common.tolist()
+                        else:
+                            # If we have too many rare classes, sample from them
+                            indices = np.random.choice(rare_indices, size=1000, replace=False)
+                    
+                    # Get the sampled data
+                    X_train = X_train.iloc[indices]
+                    if isinstance(y_train, pd.DataFrame):
+                        y_train = y_train.iloc[indices]
+                    else:
+                        y_train = y_train.iloc[indices]
+                        
+                    # Verify we have at least 2 samples of each class in the result
+                    if isinstance(y_train, pd.DataFrame):
+                        result_counts = y_train.iloc[:, 0].value_counts()
+                    else:
+                        result_counts = y_train.value_counts()
+                        
+                    min_result_count = result_counts.min()
+                    if min_result_count < 2:
+                        print(f"Warning: After sampling, minimum class count is still {min_result_count}.")
+                        print("Some classes may be excluded during training.")
+                        
+                except Exception as e:
+                    print(f"Error during stratified sampling: {e}")
+                    # Fall back to simple random sampling
+                    indices = np.random.choice(len(X_train), 1000, replace=False)
+                    X_train = X_train.iloc[indices]
+                    if isinstance(y_train, pd.DataFrame):
+                        y_train = y_train.iloc[indices]
+                    else:
+                        y_train = y_train.iloc[indices]
+            else:
+                # If class distribution is ok, use simple random sampling
+                indices = np.random.choice(len(X_train), 1000, replace=False)
+                X_train = X_train.iloc[indices]
+                if isinstance(y_train, pd.DataFrame):
+                    y_train = y_train.iloc[indices]
+                else:
+                    y_train = y_train.iloc[indices]
         
         # Convert X_train to DataFrame if it's not already
         if not isinstance(X_train, pd.DataFrame):
@@ -448,6 +549,50 @@ def train_ctabgan(X_train, y_train, categorical_columns=None, epochs=50):
         # Define problem type (classification by default)
         problem_type = {"Classification": target_name}
         
+        # Check for class counts before training
+        if isinstance(y_train, pd.DataFrame):
+            target_values = y_train.iloc[:, 0]
+        else:
+            target_values = y_train
+            
+        class_counts = target_values.value_counts()
+        min_class_count = class_counts.min()
+        
+        if min_class_count < 2:
+            print(f"Warning: Target class {class_counts.idxmin()} has only {min_class_count} instances.")
+            print("Applying oversampling to ensure at least 2 instances per class.")
+            
+            # Create a new DataFrame with oversampled rare classes
+            oversampled_data = []
+            
+            # Process each row of the original data
+            for i in range(len(X_train)):
+                # Get the class label for this row
+                if isinstance(y_train, pd.DataFrame):
+                    class_label = y_train.iloc[i, 0]
+                else:
+                    class_label = y_train.iloc[i]
+                
+                # Add the original row
+                row_data = X_train.iloc[i].tolist() + [class_label]
+                oversampled_data.append(row_data)
+                
+                # If this is a rare class with only 1 instance, duplicate it
+                if class_counts[class_label] == 1:
+                    oversampled_data.append(row_data)  # Add it again
+            
+            # Create a new DataFrame with all columns including target
+            all_columns = list(X_train.columns) + [target_name]
+            oversampled_df = pd.DataFrame(oversampled_data, columns=all_columns)
+            
+            # Save the oversampled data
+            oversampled_df.to_csv(temp_csv_path, index=False)
+            print(f"Saved oversampled data with {len(oversampled_df)} rows to {temp_csv_path}")
+            
+            # Verify class counts after oversampling
+            over_class_counts = oversampled_df[target_name].value_counts()
+            print(f"Minimum class count after oversampling: {over_class_counts.min()}")
+        
         ctabgan_model = CTABGAN(
             raw_csv_path=temp_csv_path,
             test_ratio=0.2,  # Keep consistent with the evaluation framework's test split
@@ -457,8 +602,72 @@ def train_ctabgan(X_train, y_train, categorical_columns=None, epochs=50):
             epochs=epochs
         )
         
-        # Train the model
-        ctabgan_model.fit()
+        # Train the model with try-except to handle potential issues
+        try:
+            ctabgan_model.fit()
+        except Exception as e:
+            print(f"Error during CTABGAN fitting: {e}")
+            
+            # Special handling for "least populated class" error
+            if "least populated class" in str(e):
+                print("Trying to fix the class imbalance issue...")
+                
+                # Create a more balanced dataset by oversampling rare classes even more
+                if isinstance(y_train, pd.DataFrame):
+                    # Get class distribution from the DataFrame
+                    class_distribution = y_train.iloc[:, 0].value_counts()
+                else:
+                    # Get class distribution from the Series
+                    class_distribution = y_train.value_counts()
+                
+                # Identify the minimum count needed for each class
+                # Duplicate each class to have at least 3 instances
+                balanced_data = []
+                
+                for i in range(len(X_train)):
+                    # Get the class label for this row
+                    if isinstance(y_train, pd.DataFrame):
+                        class_label = y_train.iloc[i, 0]
+                    else:
+                        class_label = y_train.iloc[i]
+                    
+                    # Get the original data row
+                    if isinstance(y_train, pd.DataFrame):
+                        row_data = X_train.iloc[i].tolist() + [y_train.iloc[i, 0]]
+                    else:
+                        row_data = X_train.iloc[i].tolist() + [y_train.iloc[i]]
+                    
+                    # Always add the original row
+                    balanced_data.append(row_data)
+                    
+                    # Add duplicates for rare classes
+                    if class_distribution[class_label] < 3:
+                        # Add enough duplicates to get to 3
+                        for _ in range(3 - class_distribution[class_label]):
+                            balanced_data.append(row_data)
+                
+                # Create a new balanced DataFrame
+                balanced_df = pd.DataFrame(balanced_data, columns=list(X_train.columns) + [target_name])
+                
+                # Save balanced data to temporary CSV
+                balanced_df.to_csv(temp_csv_path, index=False)
+                print(f"Created a balanced dataset with {len(balanced_df)} rows")
+                
+                # Try recreating and fitting the model with the new balanced data
+                try:
+                    ctabgan_model = CTABGAN(
+                        raw_csv_path=temp_csv_path,
+                        test_ratio=0.2,
+                        categorical_columns=categorical_columns,
+                        integer_columns=integer_columns,
+                        problem_type=problem_type,
+                        epochs=epochs
+                    )
+                    ctabgan_model.fit()
+                except Exception as e2:
+                    print(f"Second attempt at fitting CTABGAN failed: {e2}")
+                    # If it still fails, return None
+                    return None
         
         return ctabgan_model
     except Exception as e:
