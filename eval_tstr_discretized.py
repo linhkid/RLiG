@@ -2799,44 +2799,110 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
                 # Skip None values
                 if metric_value is None:
                     continue
+                
+                # Check if the metric value is a dictionary
+                if isinstance(metric_value, dict):
+                    # Handle nested dictionary structure
+                    if metric_key not in final_results[dataset_name]['metrics']:
+                        final_results[dataset_name]['metrics'][metric_key] = {}
                     
-                if metric_key not in final_results[dataset_name]['metrics']:
-                    final_results[dataset_name]['metrics'][metric_key] = 0
-                final_results[dataset_name]['metrics'][metric_key] += metric_value
+                    # Process each model's metric value
+                    for model_name, model_value in metric_value.items():
+                        if model_value is None:
+                            continue
+                            
+                        if model_name not in final_results[dataset_name]['metrics'][metric_key]:
+                            final_results[dataset_name]['metrics'][metric_key][model_name] = 0
+                        final_results[dataset_name]['metrics'][metric_key][model_name] += model_value
+                else:
+                    # Handle simple value (non-dictionary)
+                    if metric_key not in final_results[dataset_name]['metrics']:
+                        final_results[dataset_name]['metrics'][metric_key] = 0
+                    final_results[dataset_name]['metrics'][metric_key] += metric_value
             
             # Accumulate times
             for time_key, time_value in iteration_data['times'].items():
                 # Skip None values
                 if time_value is None:
                     continue
+                
+                # Check if the time value is a dictionary
+                if isinstance(time_value, dict):
+                    # Handle nested dictionary structure
+                    if time_key not in final_results[dataset_name]['times']:
+                        final_results[dataset_name]['times'][time_key] = {}
                     
-                if time_key not in final_results[dataset_name]['times']:
-                    final_results[dataset_name]['times'][time_key] = 0
-                final_results[dataset_name]['times'][time_key] += time_value
+                    # Process each model's time value
+                    for model_name, model_value in time_value.items():
+                        if model_value is None:
+                            continue
+                            
+                        if model_name not in final_results[dataset_name]['times'][time_key]:
+                            final_results[dataset_name]['times'][time_key][model_name] = 0
+                        final_results[dataset_name]['times'][time_key][model_name] += model_value
+                else:
+                    # Handle simple value (non-dictionary)
+                    if time_key not in final_results[dataset_name]['times']:
+                        final_results[dataset_name]['times'][time_key] = 0
+                    final_results[dataset_name]['times'][time_key] += time_value
             
             # Accumulate BIC scores
             for bic_key, bic_value in iteration_data['bic_scores'].items():
                 # Skip None values
                 if bic_value is None:
                     continue
+                
+                # Check if the BIC value is a dictionary
+                if isinstance(bic_value, dict):
+                    # Handle nested dictionary structure
+                    if bic_key not in final_results[dataset_name]['bic_scores']:
+                        final_results[dataset_name]['bic_scores'][bic_key] = {}
                     
-                if bic_key not in final_results[dataset_name]['bic_scores']:
-                    final_results[dataset_name]['bic_scores'][bic_key] = 0
-                final_results[dataset_name]['bic_scores'][bic_key] += bic_value
+                    # Process each model's BIC value
+                    for model_name, model_value in bic_value.items():
+                        if model_value is None:
+                            continue
+                            
+                        if model_name not in final_results[dataset_name]['bic_scores'][bic_key]:
+                            final_results[dataset_name]['bic_scores'][bic_key][model_name] = 0
+                        final_results[dataset_name]['bic_scores'][bic_key][model_name] += model_value
+                else:
+                    # Handle simple value (non-dictionary)
+                    if bic_key not in final_results[dataset_name]['bic_scores']:
+                        final_results[dataset_name]['bic_scores'][bic_key] = 0
+                    final_results[dataset_name]['bic_scores'][bic_key] += bic_value
         
         # Compute averages
         if valid_iterations > 0:
             # Average metrics
             for metric_key in final_results[dataset_name]['metrics'].keys():
-                final_results[dataset_name]['metrics'][metric_key] /= valid_iterations
+                if isinstance(final_results[dataset_name]['metrics'][metric_key], dict):
+                    # Handle nested dictionary
+                    for model_name in final_results[dataset_name]['metrics'][metric_key].keys():
+                        final_results[dataset_name]['metrics'][metric_key][model_name] /= valid_iterations
+                else:
+                    # Handle simple value
+                    final_results[dataset_name]['metrics'][metric_key] /= valid_iterations
             
             # Average times
             for time_key in final_results[dataset_name]['times'].keys():
-                final_results[dataset_name]['times'][time_key] /= valid_iterations
+                if isinstance(final_results[dataset_name]['times'][time_key], dict):
+                    # Handle nested dictionary
+                    for model_name in final_results[dataset_name]['times'][time_key].keys():
+                        final_results[dataset_name]['times'][time_key][model_name] /= valid_iterations
+                else:
+                    # Handle simple value
+                    final_results[dataset_name]['times'][time_key] /= valid_iterations
             
             # Average BIC scores
             for bic_key in final_results[dataset_name]['bic_scores'].keys():
-                final_results[dataset_name]['bic_scores'][bic_key] /= valid_iterations
+                if isinstance(final_results[dataset_name]['bic_scores'][bic_key], dict):
+                    # Handle nested dictionary
+                    for model_name in final_results[dataset_name]['bic_scores'][bic_key].keys():
+                        final_results[dataset_name]['bic_scores'][bic_key][model_name] /= valid_iterations
+                else:
+                    # Handle simple value
+                    final_results[dataset_name]['bic_scores'][bic_key] /= valid_iterations
     
     if nested_cv:
         print(f"\nAveraged results across {n_rounds} random seed rounds with {n_folds}-fold cross-validation in each")
