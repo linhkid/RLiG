@@ -3051,7 +3051,7 @@ def format_results(results):
         
         accuracy_results[dataset] = metrics_dict
         
-        # Process times - keeping the same format for consistency
+        # Process times - directly use the times from data
         times_dict = {}
         
         # Debug: print time data to see what we're working with
@@ -3067,15 +3067,21 @@ def format_results(results):
                     col_name = f"{model_upper}-{time_key}"
                     times_dict[col_name] = model_value
             else:
+                # This is for models where time is stored directly (not in a nested dict)
+                # Common structure in the working eval_tstr_final.py file
                 times_dict[time_key] = time_value
                 
-        # If there are no entries in times_dict, add placeholder training times
-        # based on model names from metrics to ensure we have time entries
-        if not times_dict and metrics_dict:
-            for col_name in metrics_dict.keys():
-                if '-' in col_name:
-                    model = col_name.split('-')[0]
-                    times_dict[f"{model}-training_time"] = 0.0  # Placeholder
+        # Extract training times from nested dictionary structure
+        # This ensures we extract all time values from the 'training_time' nested dictionary
+        if 'training_time' in data['times'] and isinstance(data['times']['training_time'], dict):
+            for model_name, time_value in data['times']['training_time'].items():
+                # Format model name
+                model_upper = model_name.upper()
+                if model_name.lower() == 'ganblr++':
+                    model_upper = 'GANBLR++'
+                
+                # Add direct time entry for this model
+                times_dict[model_upper] = time_value
                 
         time_results[dataset] = times_dict
         
@@ -3156,7 +3162,10 @@ def save_results_to_csv(results_dict, prefix="tstr"):
     for result_type, df in results_dict.items():
         filename = f"{directory}/{basename}_{result_type}_results.csv"
         df.to_csv(filename)
-        print(f"Saved {result_type} results to {filename}")
+        if result_type == 'time':
+            print(f"Saved training time results to {filename} - values are in seconds")
+        else:
+            print(f"Saved {result_type} results to {filename}")
 
 
 # ============= ARGUMENT PARSING =============
