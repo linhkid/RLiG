@@ -219,9 +219,9 @@ def preprocess_data(X, y, discretize=True, model_name=None):
             # Add discretization step to the pipeline
             continuous_transformer = Pipeline(steps=[
                 ('scaler', StandardScaler()),
-                ('discretizer', KBinsDiscretizer(n_bins=7, encode='ordinal', strategy='quantile'))
+                ('discretizer', KBinsDiscretizer(n_bins=5, encode='ordinal', strategy='uniform'))
             ])
-            print("Using discretization with quantile binning (7 bins)")
+            print("Using discretization with uniform binning (5 bins)")
         else:
             # Only standardize without discretization
             continuous_transformer = Pipeline(steps=[

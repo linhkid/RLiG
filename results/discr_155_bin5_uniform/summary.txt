@@ -1,0 +1,22 @@
+Dataset Evaluation Summary
+Timestamp: Fri May 16 02:25:57 SEAST 2025
+=================================================
+Datasets processed:
+total 9
+drwxr-xr-x 1 PC 197609   0 May 16 02:25 ./
+drwxr-xr-x 1 PC 197609   0 May 16 02:25 ../
+drwxr-xr-x 1 PC 197609   0 May 15 23:03 adult/
+drwxr-xr-x 1 PC 197609   0 May 15 22:47 car/
+drwxr-xr-x 1 PC 197609   0 May 15 23:19 chess/
+drwxr-xr-x 1 PC 197609   0 May 16 02:25 connect4/
+drwxr-xr-x 1 PC 197609   0 May 16 01:50 credit/
+drwxr-xr-x 1 PC 197609   0 May 15 23:54 letter_recognition/
+drwxr-xr-x 1 PC 197609   0 May 16 01:32 loan/
+drwxr-xr-x 1 PC 197609   0 May 16 00:11 magic/
+drwxr-xr-x 1 PC 197609   0 May 16 01:14 maternal_health/
+drwxr-xr-x 1 PC 197609   0 May 16 02:25 nsl_kdd/
+drwxr-xr-x 1 PC 197609   0 May 16 00:29 nursery/
+drwxr-xr-x 1 PC 197609   0 May 16 02:07 pokerhand/
+drwxr-xr-x 1 PC 197609   0 May 15 22:32 rice/
+drwxr-xr-x 1 PC 197609   0 May 16 00:52 room_occupancy/
+drwxr-xr-x 1 PC 197609   0 May 15 23:36 tictactoe/
