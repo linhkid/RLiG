@@ -1388,32 +1388,24 @@ def evaluate_models_on_fold(dataset_name, synthetic_data_cache, X_test, y_test, 
         # Get synthetic data
         synthetic_data = model_cache['data']
         
-        # Split synthetic data into features and target
-        X_synthetic = synthetic_data.iloc[:, :-1]
-        y_synthetic = synthetic_data.iloc[:, -1:]
-        
         # Train classifiers on synthetic data and evaluate on real test data
         try:
-            # Recombine synthetic features and target to match function signature
-            synthetic_full = pd.concat([X_synthetic, y_synthetic], axis=1)
-            metrics = evaluate_tstr(synthetic_full, X_test, y_test)
+            # Call evaluate_tstr with the full synthetic data
+            metrics = evaluate_tstr(synthetic_data, X_test, y_test)
             
-            # Get training times if they exist
-            times = {}
-            if f"{model_name}_train_time" in model_cache:
-                times = {f"{model_name}_train_time": model_cache[f"{model_name}_train_time"]}
+            # Store the metrics in our results structure
+            for classifier_name, accuracy in metrics.items():
+                metric_key = f"{classifier_name}_accuracy"
+                if metric_key not in model_results['metrics']:
+                    model_results['metrics'][metric_key] = {}
+                model_results['metrics'][metric_key][model_name] = accuracy
             
-            # Store the metrics
-            for metric_name, metric_value in metrics.items():
-                if metric_name not in model_results['metrics']:
-                    model_results['metrics'][metric_name] = {}
-                model_results['metrics'][metric_name][model_name] = metric_value
-                
-            # Store times if available
-            for time_name, time_value in times.items():
-                if time_name not in model_results['times']:
-                    model_results['times'][time_name] = {}
-                model_results['times'][time_name][model_name] = time_value
+            # Store training time if available
+            if 'train_time' in model_cache:
+                time_key = f"train_time"
+                if time_key not in model_results['times']:
+                    model_results['times'][time_key] = {}
+                model_results['times'][time_key][model_name] = model_cache['train_time']
                 
             # Store BIC score if available
             if 'bic' in model_cache:
@@ -2623,32 +2615,24 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
                     # Get synthetic data
                     synthetic_data = model_cache['data']
                     
-                    # Split synthetic data into features and target
-                    X_synthetic = synthetic_data.iloc[:, :-1]
-                    y_synthetic = synthetic_data.iloc[:, -1:]
-                    
                     # Train classifiers on synthetic data and evaluate on real test data
                     try:
-                        # Recombine synthetic features and target to match function signature
-                        synthetic_full = pd.concat([X_synthetic, y_synthetic], axis=1)
-                        metrics = evaluate_tstr(synthetic_full, X_test, y_test)
+                        # Call evaluate_tstr with the full synthetic data
+                        metrics = evaluate_tstr(synthetic_data, X_test, y_test)
                         
-                        # Get training times if they exist
-                        times = {}
-                        if f"{model_name}_train_time" in model_cache:
-                            times = {f"{model_name}_train_time": model_cache[f"{model_name}_train_time"]}
+                        # Store the metrics in our results structure
+                        for classifier_name, accuracy in metrics.items():
+                            metric_key = f"{classifier_name}_accuracy"
+                            if metric_key not in model_results['metrics']:
+                                model_results['metrics'][metric_key] = {}
+                            model_results['metrics'][metric_key][model_name] = accuracy
                         
-                        # Store the metrics
-                        for metric_name, metric_value in metrics.items():
-                            if metric_name not in model_results['metrics']:
-                                model_results['metrics'][metric_name] = {}
-                            model_results['metrics'][metric_name][model_name] = metric_value
-                            
-                        # Store times if available
-                        for time_name, time_value in times.items():
-                            if time_name not in model_results['times']:
-                                model_results['times'][time_name] = {}
-                            model_results['times'][time_name][model_name] = time_value
+                        # Store training time if available
+                        if 'train_time' in model_cache:
+                            time_key = f"train_time"
+                            if time_key not in model_results['times']:
+                                model_results['times'][time_key] = {}
+                            model_results['times'][time_key][model_name] = model_cache['train_time']
                             
                         # Store BIC score if available
                         if 'bic' in model_cache:
