@@ -1413,8 +1413,15 @@ def evaluate_models_on_fold(dataset_name, synthetic_data_cache, X_test, y_test, 
                     break
                     
             # Store with the model name as the key
+            # Format the key properly to avoid CSV formatting issues
             time_key = f"{model_upper}-training_time"
-            model_results['times'][time_key] = time_value
+            
+            # Ensure times dictionary is initialized properly
+            if 'training_time' not in model_results['times']:
+                model_results['times']['training_time'] = {}
+                
+            # Store the time value in the dictionary
+            model_results['times']['training_time'][model_name] = time_value
                 
             # Store BIC score if available
             if 'bic' in model_cache:
@@ -1831,7 +1838,12 @@ def train_and_evaluate_rlig(X_train, y_train, X_test, y_test, model_results, n_s
             for model_name, acc in rlig_results.items():
                 model_results['metrics'][f'RLiG-{model_name}'] = acc
             
-            model_results['times']['RLiG'] = rlig_time
+            # Ensure times dictionary is initialized properly
+            if 'training_time' not in model_results['times']:
+                model_results['times']['training_time'] = {}
+                
+            # Store the time value in the dictionary
+            model_results['times']['training_time']['rlig'] = rlig_time
             model_results['bic_scores']['RLiG'] = rlig_model.best_score if hasattr(rlig_model, 'best_score') else None
             
             print(f"RLiG TSTR results: {rlig_results}")
@@ -1889,7 +1901,12 @@ def train_and_evaluate_ganblr(train_data, X_test, y_test, model_results, n_sampl
             
         # Store BIC score and time
         ts_bic = structure_score(bn_ts, train_data, scoring_method="bic-cg") if bn_ts else None
-        model_results['times']['TS'] = ts_time
+        # Ensure times dictionary is initialized properly
+        if 'training_time' not in model_results['times']:
+            model_results['times']['training_time'] = {}
+            
+        # Store the time value in the dictionary
+        model_results['times']['training_time']['ganblr'] = ts_time
         model_results['bic_scores']['TS'] = ts_bic
         
         print(f"Tree Search - Time: {ts_time:.2f}s, BIC: {ts_bic}")
@@ -1906,7 +1923,7 @@ def train_and_evaluate_ganblr(train_data, X_test, y_test, model_results, n_sampl
             # Store results
             for model_name, acc in ts_tstr.items():
                 model_results['metrics'][f'GANBLR-{model_name}'] = acc
-            model_results['times']['GANBLR'] = ts_time
+            # Time is already stored using the training_time dictionary
             
             print(f"GANBLR - Time: {ts_time:.2f}s")
             
@@ -1952,7 +1969,12 @@ def train_and_evaluate_ganblrpp(train_data, X_test, y_test, model_results, n_sam
             
         # Store BIC score and time
         hc_bic = structure_score(bn_hc, train_data, scoring_method="bic-cg") if bn_hc else None
-        model_results['times']['HC'] = hc_time
+        # Ensure times dictionary is initialized properly
+        if 'training_time' not in model_results['times']:
+            model_results['times']['training_time'] = {}
+            
+        # Store the time value in the dictionary
+        model_results['times']['training_time']['ganblr++'] = hc_time
         model_results['bic_scores']['HC'] = hc_bic
         
         print(f"Hill Climbing - Time: {hc_time:.2f}s, BIC: {hc_bic}")
@@ -1969,7 +1991,7 @@ def train_and_evaluate_ganblrpp(train_data, X_test, y_test, model_results, n_sam
             # Store results
             for model_name, acc in hc_tstr.items():
                 model_results['metrics'][f'GANBLR++-{model_name}'] = acc
-            model_results['times']['GANBLR++'] = hc_time
+            # Time is already stored using the training_time dictionary
             
             print(f"GANBLR++ - Time: {hc_time:.2f}s")
             
@@ -2036,7 +2058,12 @@ def train_and_evaluate_ctgan(X_train, y_train, X_test, y_test, model_results, n_
         # Store results
         for model_name, acc in ctgan_tstr.items():
             model_results['metrics'][f'CTGAN-{model_name}'] = acc
-        model_results['times']['CTGAN'] = ctgan_time
+        # Ensure times dictionary is initialized properly
+        if 'training_time' not in model_results['times']:
+            model_results['times']['training_time'] = {}
+            
+        # Store the time value in the dictionary
+        model_results['times']['training_time']['ctgan'] = ctgan_time
         
         print(f"CTGAN - Time: {ctgan_time:.2f}s")
         
@@ -2095,7 +2122,12 @@ def train_and_evaluate_ctabgan(X_train, y_train, X_test, y_test, model_results, 
         # Store results
         for model_name, acc in ctabgan_tstr.items():
             model_results['metrics'][f'CTABGAN-{model_name}'] = acc
-        model_results['times']['CTABGAN'] = ctabgan_time
+        # Ensure times dictionary is initialized properly
+        if 'training_time' not in model_results['times']:
+            model_results['times']['training_time'] = {}
+            
+        # Store the time value in the dictionary
+        model_results['times']['training_time']['ctabgan'] = ctabgan_time
         
         print(f"CTABGAN - Time: {ctabgan_time:.2f}s")
         
@@ -2136,7 +2168,12 @@ def train_and_evaluate_nb(X_train, y_train, X_test, y_test, train_data, model_re
         # Store results
         for model_name, acc in nb_tstr.items():
             model_results['metrics'][f'NB-{model_name}'] = acc
-        model_results['times']['NB'] = nb_time
+        # Ensure times dictionary is initialized properly
+        if 'training_time' not in model_results['times']:
+            model_results['times']['training_time'] = {}
+            
+        # Store the time value in the dictionary
+        model_results['times']['training_time']['nb'] = nb_time
         model_results['bic_scores']['NB'] = get_gaussianNB_bic_score(nb, train_data) if nb else None
         
         print(f"Naive Bayes - Time: {nb_time:.2f}s")
@@ -2738,8 +2775,15 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
                                 break
                                 
                         # Store with the model name as the key
-                        time_key = f"{model_upper}-training_time"
-                        model_results['times'][time_key] = time_value
+                        # Format the key properly to avoid CSV formatting issues
+                        time_key = "training_time"
+                        
+                        # Ensure times dictionary is initialized properly
+                        if time_key not in model_results['times']:
+                            model_results['times'][time_key] = {}
+                            
+                        # Store the time value in the dictionary
+                        model_results['times'][time_key][model_name] = time_value
                             
                         # Store BIC score if available
                         if 'bic' in model_cache:
@@ -2778,7 +2822,12 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
                     for classifier, acc in rlig_results.items():
                         model_results['metrics'][f'RLiG-{classifier}'] = acc
                     
-                    model_results['times']['RLiG'] = time.time() - start_time
+                    # Ensure times dictionary is initialized properly
+                    if 'training_time' not in model_results['times']:
+                        model_results['times']['training_time'] = {}
+                        
+                    # Store the time value in the dictionary
+                    model_results['times']['training_time']['rlig'] = time.time() - start_time
                     
                     # Store BIC score if available
                     if 'bic' in model_cache and model_cache['bic'] is not None:
@@ -2804,7 +2853,12 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
                         model_results['metrics'][f'{model_name.upper()}-{classifier}'] = acc
                     
                     # Store time
-                    model_results['times'][model_name.upper()] = eval_time
+                    # Ensure times dictionary is initialized properly
+                    if 'training_time' not in model_results['times']:
+                        model_results['times']['training_time'] = {}
+                        
+                    # Store the time value in the dictionary
+                    model_results['times']['training_time'][model_name] = eval_time
                     
                     # Store BIC score if available
                     if 'bic' in model_cache and model_cache['bic'] is not None:
