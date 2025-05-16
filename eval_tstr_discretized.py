@@ -2917,19 +2917,104 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
 
 def format_results(results):
     """Format the results into DataFrames for easier analysis"""
+    # Define expected models and metric types for consistent column ordering
+    models = ['ganblr++', 'ganblr', 'ctgan', 'ctabgan', 'nb', 'rlig', 'great', 'tabsyn']
+    metric_types = ['LR', 'MLP', 'RF', 'XGB', 'AVG']
+    
+    # Initialize results dictionaries
     accuracy_results = {}
     time_results = {}
     bic_results = {}
     
     for dataset, data in results.items():
-        accuracy_results[dataset] = data['metrics']
-        time_results[dataset] = data['times']
-        bic_results[dataset] = data['bic_scores']
+        # Process metrics - format as MODEL-METRIC_TYPE
+        metrics_dict = {}
+        
+        for metric_key, metric_value in data['metrics'].items():
+            if isinstance(metric_value, dict):
+                # Extract classifier type (LR, MLP, RF, XGB, AVG) from the metric key
+                if '_accuracy' in metric_key:
+                    classifier_type = metric_key.split('_')[0]
+                    
+                    # Process each model's results for this classifier
+                    for model_name, model_value in metric_value.items():
+                        # Convert model name to uppercase for consistency
+                        model_upper = model_name.upper()
+                        if model_name.lower() == 'ganblr++':
+                            model_upper = 'GANBLR++'
+                            
+                        # Create column in format "MODEL-METRIC_TYPE"
+                        col_name = f"{model_upper}-{classifier_type}"
+                        metrics_dict[col_name] = model_value
+        
+        accuracy_results[dataset] = metrics_dict
+        
+        # Process times - keeping the same format for consistency
+        times_dict = {}
+        for time_key, time_value in data['times'].items():
+            if isinstance(time_value, dict):
+                for model_name, model_value in time_value.items():
+                    # Format as MODEL-TIME_TYPE
+                    model_upper = model_name.upper()
+                    if model_name.lower() == 'ganblr++':
+                        model_upper = 'GANBLR++'
+                    col_name = f"{model_upper}-{time_key}"
+                    times_dict[col_name] = model_value
+            else:
+                times_dict[time_key] = time_value
+        time_results[dataset] = times_dict
+        
+        # Process BIC scores - keeping the same format
+        bic_dict = {}
+        for bic_key, bic_value in data['bic_scores'].items():
+            if isinstance(bic_value, dict):
+                for model_name, model_value in bic_value.items():
+                    # Format as MODEL-BIC
+                    model_upper = model_name.upper()
+                    if model_name.lower() == 'ganblr++':
+                        model_upper = 'GANBLR++'
+                    col_name = f"{model_upper}-{bic_key}"
+                    bic_dict[col_name] = model_value
+            else:
+                bic_dict[bic_key] = bic_value
+        bic_results[dataset] = bic_dict
     
-    # Convert to DataFrames
+    # Create DataFrames from the dictionaries
     accuracy_df = pd.DataFrame.from_dict(accuracy_results, orient='index')
     time_df = pd.DataFrame.from_dict(time_results, orient='index')
     bic_df = pd.DataFrame.from_dict(bic_results, orient='index')
+    
+    # Sort columns to match the requested order
+    def sort_columns(df):
+        # Define a custom sorting key
+        def sort_key(col_name):
+            if '-' in col_name:
+                model, metric = col_name.split('-', 1)
+                # Get the position of the model and metric
+                try:
+                    model_idx = [m.upper() for m in models].index(model)
+                except ValueError:
+                    model_idx = len(models)  # Place unknown models at the end
+                
+                try:
+                    metric_idx = metric_types.index(metric)
+                except ValueError:
+                    metric_idx = len(metric_types)  # Place unknown metrics at the end
+                
+                return (model_idx, metric_idx)
+            else:
+                return (len(models), len(metric_types))  # Other columns at the end
+        
+        # Sort columns based on the custom key
+        if not df.empty:
+            sorted_cols = sorted(df.columns, key=sort_key)
+            return df[sorted_cols]
+        return df
+    
+    # Apply sorting to all DataFrames
+    accuracy_df = sort_columns(accuracy_df)
+    time_df = sort_columns(time_df)
+    bic_df = sort_columns(bic_df)
     
     return {
         'accuracy': accuracy_df,
