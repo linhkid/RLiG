@@ -1798,6 +1798,7 @@ def train_and_evaluate_rlig(X_train, y_train, X_test, y_test, model_results, n_s
         # Initialize and train RLiG model
         rlig_model = train_rlig(X_train, y_train, episodes=episodes, epochs=epochs)
         rlig_time = time.time() - start_time
+        print(f"RLiG training time: {rlig_time:.4f} seconds")
         
         if rlig_model is None:
             return
@@ -1839,6 +1840,10 @@ def train_and_evaluate_rlig(X_train, y_train, X_test, y_test, model_results, n_s
                 model_results['metrics'][f'RLiG-{model_name}'] = acc
             
             # Ensure times dictionary is initialized properly
+            # Store the time value directly in the model_results, similar to eval_tstr_final.py
+            model_results['times']['RLIG'] = rlig_time
+            
+            # Also keep the nested structure for compatibility
             if 'training_time' not in model_results['times']:
                 model_results['times']['training_time'] = {}
                 
@@ -1902,6 +1907,13 @@ def train_and_evaluate_ganblr(train_data, X_test, y_test, model_results, n_sampl
         # Store BIC score and time
         ts_bic = structure_score(bn_ts, train_data, scoring_method="bic-cg") if bn_ts else None
         # Ensure times dictionary is initialized properly
+        if 'training_time' not in model_results['times']:
+            model_results['times']['training_time'] = {}
+            
+        # Store the time value directly in the model_results (like in eval_tstr_final.py)
+        model_results['times']['GANBLR'] = ts_time
+        
+        # Also keep the nested structure for compatibility
         if 'training_time' not in model_results['times']:
             model_results['times']['training_time'] = {}
             
@@ -1970,6 +1982,13 @@ def train_and_evaluate_ganblrpp(train_data, X_test, y_test, model_results, n_sam
         # Store BIC score and time
         hc_bic = structure_score(bn_hc, train_data, scoring_method="bic-cg") if bn_hc else None
         # Ensure times dictionary is initialized properly
+        if 'training_time' not in model_results['times']:
+            model_results['times']['training_time'] = {}
+            
+        # Store the time value directly in the model_results (like in eval_tstr_final.py)
+        model_results['times']['GANBLR++'] = hc_time
+        
+        # Also keep the nested structure for compatibility
         if 'training_time' not in model_results['times']:
             model_results['times']['training_time'] = {}
             
@@ -2169,6 +2188,13 @@ def train_and_evaluate_nb(X_train, y_train, X_test, y_test, train_data, model_re
         for model_name, acc in nb_tstr.items():
             model_results['metrics'][f'NB-{model_name}'] = acc
         # Ensure times dictionary is initialized properly
+        if 'training_time' not in model_results['times']:
+            model_results['times']['training_time'] = {}
+            
+        # Store the time value directly in the model_results (like in eval_tstr_final.py)
+        model_results['times']['NB'] = nb_time
+        
+        # Also keep the nested structure for compatibility
         if 'training_time' not in model_results['times']:
             model_results['times']['training_time'] = {}
             
