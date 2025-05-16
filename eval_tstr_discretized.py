@@ -1394,14 +1394,22 @@ def evaluate_models_on_fold(dataset_name, synthetic_data_cache, X_test, y_test, 
         
         # Train classifiers on synthetic data and evaluate on real test data
         try:
-            metrics, times = evaluate_tstr(X_synthetic, y_synthetic, X_test, y_test)
+            # Recombine synthetic features and target to match function signature
+            synthetic_full = pd.concat([X_synthetic, y_synthetic], axis=1)
+            metrics = evaluate_tstr(synthetic_full, X_test, y_test)
             
-            # Store the metrics and times
+            # Get training times if they exist
+            times = {}
+            if f"{model_name}_train_time" in model_cache:
+                times = {f"{model_name}_train_time": model_cache[f"{model_name}_train_time"]}
+            
+            # Store the metrics
             for metric_name, metric_value in metrics.items():
                 if metric_name not in model_results['metrics']:
                     model_results['metrics'][metric_name] = {}
                 model_results['metrics'][metric_name][model_name] = metric_value
                 
+            # Store times if available
             for time_name, time_value in times.items():
                 if time_name not in model_results['times']:
                     model_results['times'][time_name] = {}
@@ -2621,14 +2629,22 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
                     
                     # Train classifiers on synthetic data and evaluate on real test data
                     try:
-                        metrics, times = evaluate_tstr(X_synthetic, y_synthetic, X_test, y_test)
+                        # Recombine synthetic features and target to match function signature
+                        synthetic_full = pd.concat([X_synthetic, y_synthetic], axis=1)
+                        metrics = evaluate_tstr(synthetic_full, X_test, y_test)
                         
-                        # Store metrics and times
+                        # Get training times if they exist
+                        times = {}
+                        if f"{model_name}_train_time" in model_cache:
+                            times = {f"{model_name}_train_time": model_cache[f"{model_name}_train_time"]}
+                        
+                        # Store the metrics
                         for metric_name, metric_value in metrics.items():
                             if metric_name not in model_results['metrics']:
                                 model_results['metrics'][metric_name] = {}
                             model_results['metrics'][metric_name][model_name] = metric_value
                             
+                        # Store times if available
                         for time_name, time_value in times.items():
                             if time_name not in model_results['times']:
                                 model_results['times'][time_name] = {}
