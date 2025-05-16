@@ -1400,23 +1400,21 @@ def evaluate_models_on_fold(dataset_name, synthetic_data_cache, X_test, y_test, 
                     model_results['metrics'][metric_key] = {}
                 model_results['metrics'][metric_key][model_name] = accuracy
             
-            # Store training time (look for multiple possible keys)
-            time_found = False
+            # Store training time directly with model name as key in the format MODEL-TIME
+            model_upper = model_name.upper()
+            if model_name.lower() == 'ganblr++':
+                model_upper = 'GANBLR++'
+                
+            # Check for any time information in model_cache
+            time_value = 0.0  # Default placeholder
             for possible_key in ['train_time', 'training_time', 'time']:
                 if possible_key in model_cache:
-                    time_key = f"training_time"  # Standardize key name
-                    if time_key not in model_results['times']:
-                        model_results['times'][time_key] = {}
-                    model_results['times'][time_key][model_name] = model_cache[possible_key]
-                    time_found = True
+                    time_value = model_cache[possible_key]
                     break
                     
-            # If no time was found, add a default time to ensure we have entries
-            if not time_found:
-                time_key = f"training_time"
-                if time_key not in model_results['times']:
-                    model_results['times'][time_key] = {}
-                model_results['times'][time_key][model_name] = 0.0  # Placeholder value
+            # Store with the model name as the key
+            time_key = f"{model_upper}-training_time"
+            model_results['times'][time_key] = time_value
                 
             # Store BIC score if available
             if 'bic' in model_cache:
@@ -2697,23 +2695,21 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
                                 model_results['metrics'][metric_key] = {}
                             model_results['metrics'][metric_key][model_name] = accuracy
                         
-                        # Store training time (look for multiple possible keys)
-                        time_found = False
+                        # Store training time directly with model name as key in the format MODEL-TIME
+                        model_upper = model_name.upper()
+                        if model_name.lower() == 'ganblr++':
+                            model_upper = 'GANBLR++'
+                            
+                        # Check for any time information in model_cache
+                        time_value = 0.0  # Default placeholder
                         for possible_key in ['train_time', 'training_time', 'time']:
                             if possible_key in model_cache:
-                                time_key = f"training_time"  # Standardize key name
-                                if time_key not in model_results['times']:
-                                    model_results['times'][time_key] = {}
-                                model_results['times'][time_key][model_name] = model_cache[possible_key]
-                                time_found = True
+                                time_value = model_cache[possible_key]
                                 break
                                 
-                        # If no time was found, add a default time to ensure we have entries
-                        if not time_found:
-                            time_key = f"training_time"
-                            if time_key not in model_results['times']:
-                                model_results['times'][time_key] = {}
-                            model_results['times'][time_key][model_name] = 0.0  # Placeholder value
+                        # Store with the model name as the key
+                        time_key = f"{model_upper}-training_time"
+                        model_results['times'][time_key] = time_value
                             
                         # Store BIC score if available
                         if 'bic' in model_cache:
