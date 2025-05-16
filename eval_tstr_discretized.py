@@ -3341,49 +3341,16 @@ if __name__ == "__main__":
     
     # Save results to CSV
     try:
-        # Set the prefix based on evaluation method and discretization
-        output_prefix = args.output_prefix
+        # Simple prefix, just distinguish between discretized and raw
+        output_prefix = "disc_tstr" if args.discretize else "raw_tstr"
         
-        # Update prefix based on discretization if using the default
-        if output_prefix == "disc_tstr" and not args.discretize:
-            output_prefix = "raw_tstr"  # Change default prefix if no discretization
-        
-        # Append CV or nested CV information to prefix
-        if args.nested_cv:
-            output_prefix = f"{output_prefix}_nested_cv_{args.n_folds}fold"
-        elif args.use_cv:
-            output_prefix = f"{output_prefix}_cv_{args.n_folds}fold"
-        else:
-            output_prefix = f"{output_prefix}_random_seed"
-            
         # Create timestamp-based directory for results
         timestamp = time.strftime("%Y%m%d_%H%M%S")
         result_dir = f"results/{timestamp}"
         os.makedirs(result_dir, exist_ok=True)
         
-        # Save results with the updated prefix to the timestamped directory
-        formatted_results_copy = formatted_results.copy()
-        
-        # Save separate files for time results to match the format you mentioned
-        if 'time' in formatted_results_copy:
-            # Save the regular time results
-            time_df = formatted_results_copy['time']
-            time_df.to_csv(f"{result_dir}/{output_prefix}_time_results.csv")
-            print(f"Saved time results to {result_dir}/{output_prefix}_time_results.csv")
-            
-            # Also save as split_time_results.csv for backward compatibility
-            time_df.to_csv(f"{result_dir}/split_time_results.csv")
-            print(f"Saved time results to {result_dir}/split_time_results.csv")
-            
-            # And as kfold_time_results.csv for backward compatibility
-            time_df.to_csv(f"{result_dir}/kfold_time_results.csv")
-            print(f"Saved time results to {result_dir}/kfold_time_results.csv")
-            
-            # Remove time from the dictionary to avoid saving it again
-            del formatted_results_copy['time']
-        
-        # Save the remaining results
-        save_results_to_csv(formatted_results_copy, prefix=f"{result_dir}/{output_prefix}")
+        # Save only the essential results files (accuracy, time, bic) without redundancy
+        save_results_to_csv(formatted_results, prefix=f"{result_dir}/{output_prefix}")
         print(f"\nResults saved to CSV files in directory '{result_dir}' with prefix '{output_prefix}'.")
     except Exception as e:
         print(f"Error saving results to CSV: {e}")
