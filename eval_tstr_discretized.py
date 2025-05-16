@@ -163,7 +163,7 @@ def label_encode_cols(X, cols):
     return X_encoded, encoders
 
 
-def preprocess_data(X, y, discretize=True, model_name=None):
+def preprocess_data(X, y, discretize=True, model_name=None, cv_fold=None, n_folds=None):
     """Preprocess data: optionally discretize continuous variables and encode categoricals
     
     This version can selectively apply discretization using quantile binning with 7 bins,
@@ -180,6 +180,10 @@ def preprocess_data(X, y, discretize=True, model_name=None):
         Whether to apply discretization to continuous features
     model_name : str, optional
         Name of the model being trained, used for model-specific preprocessing decisions
+    cv_fold : int, optional
+        Current fold number when doing k-fold cross-validation (0-indexed)
+    n_folds : int, optional
+        Total number of folds when doing k-fold cross-validation
     """
     # First, handle missing values
     # Check if there are any missing values
@@ -254,8 +258,38 @@ def preprocess_data(X, y, discretize=True, model_name=None):
     else:
         y_transformed = y
     
-    # Split data
-    return train_test_split(X_transformed_df, y_transformed, test_size=0.2, random_state=42, stratify=y)
+    # Split data based on whether we're using cross-validation or traditional train-test split
+    if cv_fold is not None and n_folds is not None:
+        from sklearn.model_selection import KFold
+        print(f"Using {n_folds}-fold cross-validation (fold {cv_fold+1}/{n_folds})")
+        
+        # Create fold indices
+        kf = KFold(n_splits=n_folds, shuffle=True, random_state=42)
+        
+        # Convert to arrays for indexing
+        X_array = X_transformed_df.values
+        y_array = y_transformed.values
+        
+        # Get the train/test indices for this fold
+        train_indices = []
+        test_indices = []
+        
+        for i, (train_idx, test_idx) in enumerate(kf.split(X_array)):
+            if i == cv_fold:
+                train_indices = train_idx
+                test_indices = test_idx
+                break
+        
+        # Split the data using the indices
+        X_train = pd.DataFrame(X_array[train_indices], columns=X_transformed_df.columns)
+        X_test = pd.DataFrame(X_array[test_indices], columns=X_transformed_df.columns)
+        y_train = pd.DataFrame(y_array[train_indices], columns=y_transformed.columns)
+        y_test = pd.DataFrame(y_array[test_indices], columns=y_transformed.columns)
+        
+        return X_train, X_test, y_train, y_test
+    else:
+        # Traditional split
+        return train_test_split(X_transformed_df, y_transformed, test_size=0.2, random_state=42, stratify=y)
 
 
 def load_dataset(name, dataset_info):
@@ -1313,6 +1347,152 @@ def generate_tabsyn_synthetic_data(tabsyn_model, train_data, n_samples=None):
 
 # ============= EVALUATION FUNCTIONS =============
 
+def evaluate_models_on_fold(dataset_name, synthetic_data_cache, X_test, y_test, models):
+    """Helper function to evaluate models on a specific fold
+    
+    Parameters:
+    -----------
+    dataset_name : str
+        Name of the dataset being evaluated
+    synthetic_data_cache : dict
+        Dictionary containing synthetic data for all models
+    X_test : DataFrame
+        Test features for this fold
+    y_test : DataFrame
+        Test target for this fold
+    models : list
+        List of model names to evaluate
+        
+    Returns:
+    --------
+    dict
+        Dictionary containing evaluation results for this fold
+    """
+    model_results = {
+        'metrics': {},
+        'times': {},
+        'bic_scores': {},
+        'dataset_name': dataset_name
+    }
+    
+    # Get the models from the cache
+    models_cache = synthetic_data_cache[dataset_name]['models']
+    
+    # Evaluate each model's synthetic data
+    for model_name, model_cache in models_cache.items():
+        if model_name not in models:
+            continue
+            
+        print(f"\n-- Evaluating {model_name.upper()} synthetic data --")
+        
+        # Get synthetic data
+        synthetic_data = model_cache['data']
+        
+        # Split synthetic data into features and target
+        X_synthetic = synthetic_data.iloc[:, :-1]
+        y_synthetic = synthetic_data.iloc[:, -1:]
+        
+        # Train classifiers on synthetic data and evaluate on real test data
+        try:
+            metrics, times = evaluate_tstr(X_synthetic, y_synthetic, X_test, y_test)
+            
+            # Store the metrics and times
+            for metric_name, metric_value in metrics.items():
+                if metric_name not in model_results['metrics']:
+                    model_results['metrics'][metric_name] = {}
+                model_results['metrics'][metric_name][model_name] = metric_value
+                
+            for time_name, time_value in times.items():
+                if time_name not in model_results['times']:
+                    model_results['times'][time_name] = {}
+                model_results['times'][time_name][model_name] = time_value
+                
+            # Store BIC score if available
+            if 'bic' in model_cache:
+                if 'bic' not in model_results['bic_scores']:
+                    model_results['bic_scores']['bic'] = {}
+                model_results['bic_scores']['bic'][model_name] = model_cache['bic']
+        except Exception as e:
+            print(f"Error evaluating {model_name} for {dataset_name}: {e}")
+    
+    return model_results
+
+def average_fold_results(fold_results):
+    """Average results across multiple folds
+    
+    Parameters:
+    -----------
+    fold_results : list
+        List of dictionaries containing results for each fold
+        
+    Returns:
+    --------
+    dict
+        Dictionary containing averaged results
+    """
+    if not fold_results:
+        return {'metrics': {}, 'times': {}, 'bic_scores': {}}
+    
+    # Initialize results structure
+    avg_results = {
+        'metrics': {},
+        'times': {},
+        'bic_scores': {},
+        'dataset_name': fold_results[0]['dataset_name']
+    }
+    
+    # Accumulate results from all folds
+    for fold_result in fold_results:
+        # Metrics
+        for metric_name, metric_data in fold_result['metrics'].items():
+            if metric_name not in avg_results['metrics']:
+                avg_results['metrics'][metric_name] = {}
+                
+            for model_name, metric_value in metric_data.items():
+                if model_name not in avg_results['metrics'][metric_name]:
+                    avg_results['metrics'][metric_name][model_name] = 0
+                avg_results['metrics'][metric_name][model_name] += metric_value
+        
+        # Times
+        for time_name, time_data in fold_result['times'].items():
+            if time_name not in avg_results['times']:
+                avg_results['times'][time_name] = {}
+                
+            for model_name, time_value in time_data.items():
+                if model_name not in avg_results['times'][time_name]:
+                    avg_results['times'][time_name][model_name] = 0
+                avg_results['times'][time_name][model_name] += time_value
+        
+        # BIC scores
+        for bic_name, bic_data in fold_result['bic_scores'].items():
+            if bic_name not in avg_results['bic_scores']:
+                avg_results['bic_scores'][bic_name] = {}
+                
+            for model_name, bic_value in bic_data.items():
+                if model_name not in avg_results['bic_scores'][bic_name]:
+                    avg_results['bic_scores'][bic_name][model_name] = 0
+                avg_results['bic_scores'][bic_name][model_name] += bic_value
+    
+    # Average the accumulated results
+    n_folds = len(fold_results)
+    
+    # Average metrics
+    for metric_name in avg_results['metrics']:
+        for model_name in avg_results['metrics'][metric_name]:
+            avg_results['metrics'][metric_name][model_name] /= n_folds
+    
+    # Average times
+    for time_name in avg_results['times']:
+        for model_name in avg_results['times'][time_name]:
+            avg_results['times'][time_name][model_name] /= n_folds
+    
+    # Average BIC scores
+    for bic_name in avg_results['bic_scores']:
+        for model_name in avg_results['bic_scores'][bic_name]:
+            avg_results['bic_scores'][bic_name][model_name] /= n_folds
+    
+    return avg_results
+
 def evaluate_tstr(synthetic_data, X_test, y_test, target_col='target'):
     """
     Evaluate models using TSTR (Train on Synthetic, Test on Real) methodology
@@ -1880,7 +2060,8 @@ def train_and_evaluate_nb(X_train, y_train, X_test, y_test, train_data, model_re
 # ============= MAIN COMPARISON FUNCTION =============
 
 def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episodes=2, rlig_epochs=5, 
-                  ctgan_epochs=50, great_bs=1, great_epochs=5, tabsyn_epochs=50, verbose=False, discretize=True):
+                  ctgan_epochs=50, great_bs=1, great_epochs=5, tabsyn_epochs=50, verbose=False, discretize=True,
+                  use_cv=False, n_folds=2, nested_cv=False):
     """
     Compare generative models using TSTR methodology as described in the paper
     with multiple rounds of cross-validation for robustness
@@ -1912,6 +2093,14 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
         Whether to apply discretization to continuous features during preprocessing.
         When True, quantile binning with 7 bins is used.
         When False, only standardization is applied to continuous features.
+    use_cv : bool
+        Whether to use k-fold cross-validation (default: False)
+    n_folds : int
+        Number of folds to use when use_cv is True (default: 2)
+    nested_cv : bool
+        Whether to use k-fold cross-validation within each random seed round.
+        When True, runs n_folds CV for each of the n_rounds random seeds.
+        When False and use_cv is True, uses only CV without different random seeds.
     """
     # Default models to evaluate
     if models is None:
@@ -1966,22 +2155,49 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
             
         # Preprocess data based on discretization flag
         try:
-            X_train, X_test, y_train, y_test = preprocess_data(X, y, discretize=args.discretize)
-            train_data = pd.concat([X_train, y_train], axis=1)
-            print(f"Data loaded and preprocessed with discretize={args.discretize}. Training data shape: {train_data.shape}")
+            if use_cv:
+                # Initialize synthetic data cache for this dataset with folds
+                synthetic_data_cache[name] = {
+                    'folds': [],
+                    'models': {}
+                }
+                
+                # Create a fold for each cross-validation split
+                for fold_idx in range(n_folds):
+                    X_train, X_test, y_train, y_test = preprocess_data(
+                        X, y, discretize=discretize, cv_fold=fold_idx, n_folds=n_folds
+                    )
+                    train_data = pd.concat([X_train, y_train], axis=1)
+                    print(f"Fold {fold_idx+1}/{n_folds} data loaded and preprocessed. "
+                          f"Training data shape: {train_data.shape}")
+                    
+                    # Add this fold to the dataset cache
+                    synthetic_data_cache[name]['folds'].append({
+                        'X_train': X_train,
+                        'X_test': X_test,
+                        'y_train': y_train, 
+                        'y_test': y_test,
+                        'train_data': train_data
+                    })
+            else:
+                # Traditional train-test split
+                X_train, X_test, y_train, y_test = preprocess_data(X, y, discretize=discretize)
+                train_data = pd.concat([X_train, y_train], axis=1)
+                print(f"Data loaded and preprocessed with discretize={discretize}. "
+                      f"Training data shape: {train_data.shape}")
+                
+                # Initialize synthetic data cache for this dataset
+                synthetic_data_cache[name] = {
+                    'X_train': X_train,
+                    'X_test': X_test,
+                    'y_train': y_train, 
+                    'y_test': y_test,
+                    'train_data': train_data,
+                    'models': {}
+                }
         except Exception as e:
             print(f"Error preprocessing data: {e}")
             continue
-            
-        # Initialize synthetic data cache for this dataset
-        synthetic_data_cache[name] = {
-            'X_train': X_train,
-            'X_test': X_test,
-            'y_train': y_train, 
-            'y_test': y_test,
-            'train_data': train_data,
-            'models': {}
-        }
         
         # Set number of synthetic samples to match training data size
         n_samples = len(train_data)
@@ -2259,39 +2475,175 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
             except Exception as e:
                 print(f"Error generating TabSyn synthetic data: {e}")
 
-    # Now run multiple rounds of cross-validation on the generated synthetic data
-    for round_idx in range(n_rounds):
-        print(f"\n\n{'='*20} CROSS-VALIDATION ROUND {round_idx+1}/{n_rounds} {'='*20}\n")
+    # Configure approach based on CV and nested CV options
+    if nested_cv:
+        print(f"\n\n{'='*20} USING {n_folds}-FOLD CROSS-VALIDATION WITHIN {n_rounds} RANDOM SEED ROUNDS {'='*20}\n")
+    elif use_cv:
+        print(f"\n\n{'='*20} USING {n_folds}-FOLD CROSS-VALIDATION {'='*20}\n")
+    else:
+        print(f"\n\n{'='*20} USING {n_rounds} ROUNDS WITH DIFFERENT RANDOM SEEDS {'='*20}\n")
+
+    # Dictionary to store results from all rounds/folds
+    all_rounds_results = {}
+    
+    # Run appropriate evaluation strategy
+    if nested_cv:
+        # Nested CV: Random seeds with k-fold CV within each
+        for round_idx in range(n_rounds):
+            all_rounds_results[round_idx] = {}
+            
+            print(f"\n\n{'='*20} RANDOM SEED ROUND {round_idx+1}/{n_rounds} {'='*20}\n")
+            
+            # Set a different seed for each round but in a deterministic way
+            round_seed = seed + round_idx
+            np.random.seed(round_seed)
+            
+            # For each dataset in this round
+            for name in synthetic_data_cache.keys():
+                X, y = load_dataset(name, datasets[name])
+                if X is None or y is None:
+                    continue
+                
+                # Initialize results for this dataset in this round
+                all_rounds_results[round_idx][name] = {
+                    'metrics': {},
+                    'times': {},
+                    'bic_scores': {},
+                    'dataset_name': name
+                }
+                
+                # Run k-fold CV for this dataset in this round
+                fold_results = []
+                
+                for fold_idx in range(n_folds):
+                    print(f"\n{'='*15} FOLD {fold_idx+1}/{n_folds} FOR {name} IN ROUND {round_idx+1} {'='*15}\n")
+                    
+                    # Prepare data for this fold
+                    X_train, X_test, y_train, y_test = preprocess_data(
+                        X, y, discretize=discretize, cv_fold=fold_idx, n_folds=n_folds
+                    )
+                    
+                    # Evaluate each model using the test data
+                    fold_model_results = evaluate_models_on_fold(
+                        name, synthetic_data_cache, X_test, y_test, models
+                    )
+                    
+                    # Store this fold's results
+                    fold_results.append(fold_model_results)
+                
+                # Average the results across folds for this dataset in this round
+                all_rounds_results[round_idx][name] = average_fold_results(fold_results)
+                
+    elif use_cv:
+        # Single round of k-fold CV
+        round_idx = 0
+        all_rounds_results[round_idx] = {}
         
-        # Set a different seed for each round but in a deterministic way
-        round_seed = seed + round_idx
-        np.random.seed(round_seed)
-        
-        round_results = {}
-        
-        # For each dataset, evaluate models using the pre-generated synthetic data
+        # For each dataset
         for name in synthetic_data_cache.keys():
-            print(f"\n{'='*50}\nEvaluating dataset: {name} (Round {round_idx+1})\n{'='*50}")
+            X, y = load_dataset(name, datasets[name])
+            if X is None or y is None:
+                continue
             
-            # Get cached data
-            cached_data = synthetic_data_cache[name]
-            X_test = cached_data['X_test'] 
-            y_test = cached_data['y_test']
-            
-            # Initialize results for this dataset and round
-            model_results = {
+            # Initialize results for this dataset
+            all_rounds_results[round_idx][name] = {
                 'metrics': {},
                 'times': {},
                 'bic_scores': {},
                 'dataset_name': name
             }
             
-            # Evaluate each model's synthetic data
-            for model_name, model_cache in cached_data['models'].items():
-                print(f"\n-- Evaluating {model_name.upper()} synthetic data --")
+            # Run k-fold CV for this dataset
+            fold_results = []
+            
+            for fold_idx in range(n_folds):
+                print(f"\n{'='*15} FOLD {fold_idx+1}/{n_folds} FOR {name} {'='*15}\n")
                 
-                # Get synthetic data and BIC score
-                synthetic_data = model_cache['data']
+                # Prepare data for this fold
+                X_train, X_test, y_train, y_test = preprocess_data(
+                    X, y, discretize=discretize, cv_fold=fold_idx, n_folds=n_folds
+                )
+                
+                # Evaluate each model using the test data
+                fold_model_results = evaluate_models_on_fold(
+                    name, synthetic_data_cache, X_test, y_test, models
+                )
+                
+                # Store this fold's results
+                fold_results.append(fold_model_results)
+            
+            # Average the results across folds for this dataset
+            all_rounds_results[round_idx][name] = average_fold_results(fold_results)
+            
+    else:
+        # Traditional approach: Multiple rounds with different random seeds
+        for round_idx in range(n_rounds):
+            all_rounds_results[round_idx] = {}
+            
+            print(f"\n\n{'='*20} RANDOM SEED ROUND {round_idx+1}/{n_rounds} {'='*20}\n")
+            
+            # Set a different seed for each round but in a deterministic way
+            round_seed = seed + round_idx
+            np.random.seed(round_seed)
+            
+            # For each dataset in this round
+            for name in synthetic_data_cache.keys():
+                print(f"\n{'='*50}\nEvaluating dataset: {name} (Round {round_idx+1})\n{'='*50}")
+                
+                # Get cached data
+                cached_data = synthetic_data_cache[name]
+                X_test = cached_data['X_test'] 
+                y_test = cached_data['y_test']
+                
+                # Evaluate models
+                model_results = {
+                    'metrics': {},
+                    'times': {},
+                    'bic_scores': {},
+                    'dataset_name': name
+                }
+                
+                # Evaluate each model's synthetic data
+                models_cache = cached_data['models']
+                
+                for model_name, model_cache in models_cache.items():
+                    if model_name not in models:
+                        continue
+                        
+                    print(f"\n-- Evaluating {model_name.upper()} synthetic data --")
+                    
+                    # Get synthetic data
+                    synthetic_data = model_cache['data']
+                    
+                    # Split synthetic data into features and target
+                    X_synthetic = synthetic_data.iloc[:, :-1]
+                    y_synthetic = synthetic_data.iloc[:, -1:]
+                    
+                    # Train classifiers on synthetic data and evaluate on real test data
+                    try:
+                        metrics, times = evaluate_tstr(X_synthetic, y_synthetic, X_test, y_test)
+                        
+                        # Store metrics and times
+                        for metric_name, metric_value in metrics.items():
+                            if metric_name not in model_results['metrics']:
+                                model_results['metrics'][metric_name] = {}
+                            model_results['metrics'][metric_name][model_name] = metric_value
+                            
+                        for time_name, time_value in times.items():
+                            if time_name not in model_results['times']:
+                                model_results['times'][time_name] = {}
+                            model_results['times'][time_name][model_name] = time_value
+                            
+                        # Store BIC score if available
+                        if 'bic' in model_cache:
+                            if 'bic' not in model_results['bic_scores']:
+                                model_results['bic_scores']['bic'] = {}
+                            model_results['bic_scores']['bic'][model_name] = model_cache['bic']
+                    except Exception as e:
+                        print(f"Error evaluating {model_name} for {name}: {e}")
+                
+                # Store results for this dataset in this round
+                all_rounds_results[round_idx][name] = model_results
                 
                 if model_name == 'rlig' and 'model' in model_cache:
                     # Use RLiG's built-in evaluate method for consistency
@@ -2358,6 +2710,9 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
         all_rounds_results[round_idx] = round_results
     
     # Average results across all rounds
+    # Determine number of iterations based on CV or rounds mode
+    iterations = n_folds if use_cv else n_rounds
+    
     final_results = {}
     
     for dataset_name in datasets.keys():
@@ -2369,19 +2724,19 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
             'dataset_name': dataset_name
         }
         
-        # Count valid rounds for this dataset
-        valid_rounds = 0
+        # Count valid iterations for this dataset
+        valid_iterations = 0
         
-        # Combine metrics from all rounds
-        for round_idx in range(n_rounds):
-            if dataset_name not in all_rounds_results[round_idx]:
+        # Combine metrics from all iterations (folds or rounds)
+        for iter_idx in range(iterations):
+            if dataset_name not in all_rounds_results[iter_idx]:
                 continue
                 
-            round_data = all_rounds_results[round_idx][dataset_name]
-            valid_rounds += 1
+            iteration_data = all_rounds_results[iter_idx][dataset_name]
+            valid_iterations += 1
             
             # Accumulate metrics
-            for metric_key, metric_value in round_data['metrics'].items():
+            for metric_key, metric_value in iteration_data['metrics'].items():
                 # Skip None values
                 if metric_value is None:
                     continue
@@ -2391,7 +2746,7 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
                 final_results[dataset_name]['metrics'][metric_key] += metric_value
             
             # Accumulate times
-            for time_key, time_value in round_data['times'].items():
+            for time_key, time_value in iteration_data['times'].items():
                 # Skip None values
                 if time_value is None:
                     continue
@@ -2401,7 +2756,7 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
                 final_results[dataset_name]['times'][time_key] += time_value
             
             # Accumulate BIC scores
-            for bic_key, bic_value in round_data['bic_scores'].items():
+            for bic_key, bic_value in iteration_data['bic_scores'].items():
                 # Skip None values
                 if bic_value is None:
                     continue
@@ -2411,20 +2766,25 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
                 final_results[dataset_name]['bic_scores'][bic_key] += bic_value
         
         # Compute averages
-        if valid_rounds > 0:
+        if valid_iterations > 0:
             # Average metrics
             for metric_key in final_results[dataset_name]['metrics'].keys():
-                final_results[dataset_name]['metrics'][metric_key] /= valid_rounds
+                final_results[dataset_name]['metrics'][metric_key] /= valid_iterations
             
             # Average times
             for time_key in final_results[dataset_name]['times'].keys():
-                final_results[dataset_name]['times'][time_key] /= valid_rounds
+                final_results[dataset_name]['times'][time_key] /= valid_iterations
             
             # Average BIC scores
             for bic_key in final_results[dataset_name]['bic_scores'].keys():
-                final_results[dataset_name]['bic_scores'][bic_key] /= valid_rounds
+                final_results[dataset_name]['bic_scores'][bic_key] /= valid_iterations
     
-    print(f"\nAveraged results across {n_rounds} rounds")
+    if nested_cv:
+        print(f"\nAveraged results across {n_rounds} random seed rounds with {n_folds}-fold cross-validation in each")
+    elif use_cv:
+        print(f"\nAveraged results across {n_folds} cross-validation folds")
+    else:
+        print(f"\nAveraged results across {n_rounds} random seed rounds")
     return final_results
 
 
@@ -2573,6 +2933,28 @@ def parse_args():
         help="Do not apply discretization to continuous features"
     )
     
+    # Cross-validation control
+    parser.add_argument(
+        "--use-cv",
+        action="store_true",
+        default=False,
+        help="Use k-fold cross-validation instead of random seed rounds"
+    )
+    
+    parser.add_argument(
+        "--nested-cv",
+        action="store_true",
+        default=False,
+        help="Use k-fold cross-validation within each random seed round"
+    )
+    
+    parser.add_argument(
+        "--n-folds",
+        type=int,
+        default=2,
+        help="Number of folds for cross-validation (default: 2)"
+    )
+    
     # Additional model parameters
     parser.add_argument(
         "--ctgan_epochs", 
@@ -2686,7 +3068,10 @@ if __name__ == "__main__":
         great_epochs=args.great_epochs,
         tabsyn_epochs=args.tabsyn_epochs,
         verbose=args.verbose,
-        discretize=args.discretize
+        discretize=args.discretize,
+        use_cv=args.use_cv,
+        n_folds=args.n_folds,
+        nested_cv=args.nested_cv
     )
     
     # Format and display results
