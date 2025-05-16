@@ -1468,31 +1468,51 @@ def average_fold_results(fold_results):
         
         # Times
         for time_name, time_data in fold_result['times'].items():
-            if time_name not in avg_results['times']:
-                avg_results['times'][time_name] = {}
-                
-            for model_name, time_value in time_data.items():
-                # Skip None values
-                if time_value is None:
-                    continue
+            # Check if time_data is a dictionary or a direct value
+            if isinstance(time_data, dict):
+                # Handle dictionary case
+                if time_name not in avg_results['times']:
+                    avg_results['times'][time_name] = {}
                     
-                if model_name not in avg_results['times'][time_name]:
-                    avg_results['times'][time_name][model_name] = 0
-                avg_results['times'][time_name][model_name] += time_value
+                for model_name, time_value in time_data.items():
+                    # Skip None values
+                    if time_value is None:
+                        continue
+                        
+                    if model_name not in avg_results['times'][time_name]:
+                        avg_results['times'][time_name][model_name] = 0
+                    avg_results['times'][time_name][model_name] += time_value
+            else:
+                # Handle direct value case (float or other non-dict)
+                if time_name not in avg_results['times']:
+                    avg_results['times'][time_name] = 0
+                # Skip None values
+                if time_data is not None:
+                    avg_results['times'][time_name] += time_data
         
         # BIC scores
         for bic_name, bic_data in fold_result['bic_scores'].items():
-            if bic_name not in avg_results['bic_scores']:
-                avg_results['bic_scores'][bic_name] = {}
-                
-            for model_name, bic_value in bic_data.items():
-                # Skip None values
-                if bic_value is None:
-                    continue
+            # Check if bic_data is a dictionary or a direct value
+            if isinstance(bic_data, dict):
+                # Handle dictionary case
+                if bic_name not in avg_results['bic_scores']:
+                    avg_results['bic_scores'][bic_name] = {}
                     
-                if model_name not in avg_results['bic_scores'][bic_name]:
-                    avg_results['bic_scores'][bic_name][model_name] = 0
-                avg_results['bic_scores'][bic_name][model_name] += bic_value
+                for model_name, bic_value in bic_data.items():
+                    # Skip None values
+                    if bic_value is None:
+                        continue
+                        
+                    if model_name not in avg_results['bic_scores'][bic_name]:
+                        avg_results['bic_scores'][bic_name][model_name] = 0
+                    avg_results['bic_scores'][bic_name][model_name] += bic_value
+            else:
+                # Handle direct value case (float or other non-dict)
+                if bic_name not in avg_results['bic_scores']:
+                    avg_results['bic_scores'][bic_name] = 0
+                # Skip None values
+                if bic_data is not None:
+                    avg_results['bic_scores'][bic_name] += bic_data
     
     # Average the accumulated results
     n_folds = len(fold_results)
@@ -1504,13 +1524,23 @@ def average_fold_results(fold_results):
     
     # Average times
     for time_name in avg_results['times']:
-        for model_name in avg_results['times'][time_name]:
-            avg_results['times'][time_name][model_name] /= n_folds
+        if isinstance(avg_results['times'][time_name], dict):
+            # Handle dictionary case
+            for model_name in avg_results['times'][time_name]:
+                avg_results['times'][time_name][model_name] /= n_folds
+        else:
+            # Handle direct value case
+            avg_results['times'][time_name] /= n_folds
     
     # Average BIC scores
     for bic_name in avg_results['bic_scores']:
-        for model_name in avg_results['bic_scores'][bic_name]:
-            avg_results['bic_scores'][bic_name][model_name] /= n_folds
+        if isinstance(avg_results['bic_scores'][bic_name], dict):
+            # Handle dictionary case
+            for model_name in avg_results['bic_scores'][bic_name]:
+                avg_results['bic_scores'][bic_name][model_name] /= n_folds
+        else:
+            # Handle direct value case
+            avg_results['bic_scores'][bic_name] /= n_folds
     
     return avg_results
 
