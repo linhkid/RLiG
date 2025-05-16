@@ -10,16 +10,16 @@
 
 ## Model Rankings
 
-| Rank | Model | Average Score |
-|------|-------|---------------|
-| 1 | GANBLR | 0.8927 |
-| 2 | GANBLR++ | 0.8919 |
-| 3 | RLiG | 0.8895 |
-| 4 | CTABGAN | 0.8385 |
-| 5 | TABSYN | 0.6098 |
-| 6 | CTGAN | 0.5797 |
-| 7 | NB | 0.5778 |
-| 8 | GREAT | 0.2424 |
+| Rank | Model      | Average Score |
+|------|------------|---------------|
+| 1 | GANBLR     | 0.8927 |
+| 2 | GANBLR++   | 0.8919 |
+| 3 | RLiG       | 0.8895 |
+| 4 | CTABGAN    | 0.8385 |
+| 5 | DIST_SAMPL | 0.6098 |
+| 6 | CTGAN      | 0.5797 |
+| 7 | NB         | 0.5778 |
+| 8 | GREAT      | 0.2424 |
 
 ## Top Performing Model-Classifier Combinations
 
