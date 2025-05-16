@@ -1449,6 +1449,10 @@ def average_fold_results(fold_results):
                 avg_results['metrics'][metric_name] = {}
                 
             for model_name, metric_value in metric_data.items():
+                # Skip None values
+                if metric_value is None:
+                    continue
+                    
                 if model_name not in avg_results['metrics'][metric_name]:
                     avg_results['metrics'][metric_name][model_name] = 0
                 avg_results['metrics'][metric_name][model_name] += metric_value
@@ -1459,6 +1463,10 @@ def average_fold_results(fold_results):
                 avg_results['times'][time_name] = {}
                 
             for model_name, time_value in time_data.items():
+                # Skip None values
+                if time_value is None:
+                    continue
+                    
                 if model_name not in avg_results['times'][time_name]:
                     avg_results['times'][time_name][model_name] = 0
                 avg_results['times'][time_name][model_name] += time_value
@@ -1469,6 +1477,10 @@ def average_fold_results(fold_results):
                 avg_results['bic_scores'][bic_name] = {}
                 
             for model_name, bic_value in bic_data.items():
+                # Skip None values
+                if bic_value is None:
+                    continue
+                    
                 if model_name not in avg_results['bic_scores'][bic_name]:
                     avg_results['bic_scores'][bic_name][model_name] = 0
                 avg_results['bic_scores'][bic_name][model_name] += bic_value
@@ -1521,6 +1533,30 @@ def evaluate_tstr(synthetic_data, X_test, y_test, target_col='target'):
             # If target column isn't found, assume last column is target
             syn_X = synthetic_data.iloc[:, :-1]
             syn_y = synthetic_data.iloc[:, -1]
+            
+        # Debug target variables
+        print(f"Synthetic target type: {type(syn_y)}, values: {syn_y.head()}")
+        print(f"Test target type: {type(y_test)}, values: {y_test.head()}")
+        
+        # Ensure targets are in a format classifiers can work with
+        for y_var, name in [(syn_y, "synthetic"), (y_test, "test")]:
+            if isinstance(y_var, pd.Series) or isinstance(y_var, pd.DataFrame):
+                # Try to convert to numeric if possible
+                try:
+                    if name == "synthetic":
+                        syn_y = pd.to_numeric(y_var)
+                    else:
+                        y_test = pd.to_numeric(y_var)
+                except:
+                    # If conversion fails, just use as is
+                    pass
+                    
+                # If it's still a DataFrame with 1 column, convert to Series
+                if isinstance(y_var, pd.DataFrame) and y_var.shape[1] == 1:
+                    if name == "synthetic":
+                        syn_y = y_var.iloc[:, 0]
+                    else:
+                        y_test = y_var.iloc[:, 0]
         
         # Ensure synthetic data has the same types as test data
         for col in X_test.columns:
@@ -1627,13 +1663,36 @@ def evaluate_tstr(synthetic_data, X_test, y_test, target_col='target'):
                 ])
                 
                 # Train on synthetic data
-                pipeline.fit(syn_X, syn_y)
-                
-                # Test on real data
-                y_pred = pipeline.predict(X_test)
-                acc = accuracy_score(y_test, y_pred)
-                results[name] = acc
-                print(f"{name} TSTR accuracy: {acc:.4f}")
+                try:
+                    # Try to fit with sklearn's error handling
+                    pipeline.fit(syn_X, syn_y)
+                    
+                    # Test on real data
+                    y_pred = pipeline.predict(X_test)
+                    acc = accuracy_score(y_test, y_pred)
+                    results[name] = acc
+                    print(f"{name} TSTR accuracy: {acc:.4f}")
+                except ValueError as ve:
+                    print(f"Fitting error for {name}: {ve}")
+                    # Try a backup approach if the error is about label types
+                    if "Unknown label type" in str(ve):
+                        try:
+                            print(f"Attempting to convert target variables to int")
+                            # Convert both target variables to integers
+                            syn_y_int = syn_y.astype(int)
+                            y_test_int = y_test.astype(int)
+                            
+                            # Try fitting with the converted targets
+                            pipeline.fit(syn_X, syn_y_int)
+                            y_pred = pipeline.predict(X_test)
+                            acc = accuracy_score(y_test_int, y_pred)
+                            results[name] = acc
+                            print(f"{name} TSTR accuracy (with int conversion): {acc:.4f}")
+                        except Exception as backup_error:
+                            print(f"Backup approach failed: {backup_error}")
+                            results[name] = None
+                    else:
+                        results[name] = None
             except Exception as e:
                 print(f"Error evaluating {name}: {e}")
                 results[name] = None
