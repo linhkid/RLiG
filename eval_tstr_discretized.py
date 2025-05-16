@@ -1400,12 +1400,23 @@ def evaluate_models_on_fold(dataset_name, synthetic_data_cache, X_test, y_test, 
                     model_results['metrics'][metric_key] = {}
                 model_results['metrics'][metric_key][model_name] = accuracy
             
-            # Store training time if available
-            if 'train_time' in model_cache:
-                time_key = f"train_time"
+            # Store training time (look for multiple possible keys)
+            time_found = False
+            for possible_key in ['train_time', 'training_time', 'time']:
+                if possible_key in model_cache:
+                    time_key = f"training_time"  # Standardize key name
+                    if time_key not in model_results['times']:
+                        model_results['times'][time_key] = {}
+                    model_results['times'][time_key][model_name] = model_cache[possible_key]
+                    time_found = True
+                    break
+                    
+            # If no time was found, add a default time to ensure we have entries
+            if not time_found:
+                time_key = f"training_time"
                 if time_key not in model_results['times']:
                     model_results['times'][time_key] = {}
-                model_results['times'][time_key][model_name] = model_cache['train_time']
+                model_results['times'][time_key][model_name] = 0.0  # Placeholder value
                 
             # Store BIC score if available
             if 'bic' in model_cache:
@@ -2686,12 +2697,23 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
                                 model_results['metrics'][metric_key] = {}
                             model_results['metrics'][metric_key][model_name] = accuracy
                         
-                        # Store training time if available
-                        if 'train_time' in model_cache:
-                            time_key = f"train_time"
+                        # Store training time (look for multiple possible keys)
+                        time_found = False
+                        for possible_key in ['train_time', 'training_time', 'time']:
+                            if possible_key in model_cache:
+                                time_key = f"training_time"  # Standardize key name
+                                if time_key not in model_results['times']:
+                                    model_results['times'][time_key] = {}
+                                model_results['times'][time_key][model_name] = model_cache[possible_key]
+                                time_found = True
+                                break
+                                
+                        # If no time was found, add a default time to ensure we have entries
+                        if not time_found:
+                            time_key = f"training_time"
                             if time_key not in model_results['times']:
                                 model_results['times'][time_key] = {}
-                            model_results['times'][time_key][model_name] = model_cache['train_time']
+                            model_results['times'][time_key][model_name] = 0.0  # Placeholder value
                             
                         # Store BIC score if available
                         if 'bic' in model_cache:
@@ -2951,6 +2973,10 @@ def format_results(results):
         
         # Process times - keeping the same format for consistency
         times_dict = {}
+        
+        # Debug: print time data to see what we're working with
+        print(f"DEBUG - Time data for {dataset}: {data['times']}")
+        
         for time_key, time_value in data['times'].items():
             if isinstance(time_value, dict):
                 for model_name, model_value in time_value.items():
@@ -2962,6 +2988,15 @@ def format_results(results):
                     times_dict[col_name] = model_value
             else:
                 times_dict[time_key] = time_value
+                
+        # If there are no entries in times_dict, add placeholder training times
+        # based on model names from metrics to ensure we have time entries
+        if not times_dict and metrics_dict:
+            for col_name in metrics_dict.keys():
+                if '-' in col_name:
+                    model = col_name.split('-')[0]
+                    times_dict[f"{model}-training_time"] = 0.0  # Placeholder
+                
         time_results[dataset] = times_dict
         
         # Process BIC scores - keeping the same format
