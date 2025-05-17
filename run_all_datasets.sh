@@ -24,7 +24,8 @@ run_dataset() {
     local dataset_args="$2"
     local folder_name="$3"
     local use_discretize="$4"  # Add parameter for discretization option
-    
+
+
     if [ -z "$folder_name" ]; then
         # Use dataset name as folder name if not specified
         folder_name="${dataset_name// /_}"
