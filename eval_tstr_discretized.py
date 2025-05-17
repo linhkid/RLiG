@@ -2492,6 +2492,8 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
                         model_results['bic_scores'][model_name.upper()] = model_cache['bic']
             
             # Store results for this dataset and round
+            if 'round_results' not in locals():
+                round_results = {}  # Initialize if it doesn't exist
             round_results[name] = model_results
         
         # Store this round's results
