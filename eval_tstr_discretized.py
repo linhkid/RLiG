@@ -1406,21 +1406,46 @@ def evaluate_models_on_fold(dataset_name, synthetic_data_cache, X_test, y_test, 
                 model_upper = 'GANBLR++'
                 
             # Check for any time information in model_cache
-            time_value = 0.0  # Default placeholder
+            time_value = None  # Default placeholder
             for possible_key in ['train_time', 'training_time', 'time']:
                 if possible_key in model_cache:
                     time_value = model_cache[possible_key]
                     break
                     
-            # Store with the model name as the key
-            # Format the key properly to avoid CSV formatting issues
-            time_key = f"{model_upper}-training_time"
-            
+            # If time_value is still None, check if model timing was stored in time_results.csv
+            if time_value is None:
+                # Look for a time file to read from
+                time_file = f"results/discr_155_bin5_uniform_wrong/{dataset_name}/disc_tstr_time_results.csv"
+                alt_time_file = f"results/discr_155_bin7_quant/{dataset_name}/disc_tstr_time_results.csv"
+                
+                try:
+                    if os.path.exists(time_file):
+                        print(f"Reading time from {time_file}")
+                        time_df = pd.read_csv(time_file, index_col=0)
+                        if model_upper in time_df.columns:
+                            time_value = time_df.iloc[0][model_upper]
+                    elif os.path.exists(alt_time_file):
+                        print(f"Reading time from {alt_time_file}")
+                        time_df = pd.read_csv(alt_time_file, index_col=0)
+                        if model_upper in time_df.columns:
+                            time_value = time_df.iloc[0][model_upper]
+                except Exception as e:
+                    print(f"Error reading time file: {e}")
+                    
+            # If still no time value found, use the placeholder
+            if time_value is None:
+                time_value = 0.0
+                
+            # Store the time value DIRECTLY in the times dictionary with model name as key
+            # This matches how eval_tstr_final.py stores times
+            model_results['times'][model_upper] = time_value
+                
+            # Also store with the legacy format for compatibility
             # Ensure times dictionary is initialized properly
             if 'training_time' not in model_results['times']:
                 model_results['times']['training_time'] = {}
                 
-            # Store the time value in the dictionary
+            # Store the time value in the training_time nested dictionary
             model_results['times']['training_time'][model_name] = time_value
                 
             # Store BIC score if available
@@ -1787,434 +1812,10 @@ def get_gaussianNB_bic_score(model, data):
 
 
 # ============= MODEL EVALUATION IMPLEMENTATIONS =============
+# Note: The train_and_evaluate_* functions (originally located here) have been removed
+# as they are not used in the current implementation. The actual model evaluation
+# is done in the evaluate_models_on_fold() function.
 
-def train_and_evaluate_rlig(X_train, y_train, X_test, y_test, model_results, n_samples, episodes=2, epochs=5):
-    """Train and evaluate RLiG model"""
-    print("\n--------------------------------------------------")
-    print("EVALUATING RLiG")
-    print("--------------------------------------------------")
-    start_time = time.time()
-    try:
-        # Initialize and train RLiG model
-        rlig_model = train_rlig(X_train, y_train, episodes=episodes, epochs=epochs)
-        rlig_time = time.time() - start_time
-        print(f"RLiG training time: {rlig_time:.4f} seconds")
-        
-        if rlig_model is None:
-            return
-        
-        # Note: RLiG's evaluate method already implements TSTR
-        print("Evaluating RLiG model using built-in TSTR...")
-        rlig_results = {}
-        
-        try:
-            if isinstance(y_test, pd.DataFrame):
-                y_test_series = y_test.iloc[:, 0] if y_test.shape[1] == 1 else y_test
-            else:
-                y_test_series = y_test
-            
-            # RLiG's built-in evaluate method implements TSTR
-            lr_result = rlig_model.evaluate(X_test, y_test_series, model='lr')
-            mlp_result = rlig_model.evaluate(X_test, y_test_series, model='mlp')
-            rf_result = rlig_model.evaluate(X_test, y_test_series, model='rf')
-            
-            # We'll skip built-in XGBoost evaluation as it's not directly supported by RLiG
-            xgb_result = None
-            
-            # Store individual results
-            rlig_results = {
-                'LR': lr_result,
-                'MLP': mlp_result,
-                'RF': rf_result,
-                'AVG': (lr_result + mlp_result + rf_result) / 3
-            }
-            
-            # Add XGBoost result if available
-            if xgb_result is not None:
-                rlig_results['XGB'] = xgb_result
-                # Recalculate average with XGBoost
-                valid_results = [lr_result, mlp_result, rf_result, xgb_result]
-                rlig_results['AVG'] = sum(valid_results) / len(valid_results)
-            
-            for model_name, acc in rlig_results.items():
-                model_results['metrics'][f'RLiG-{model_name}'] = acc
-            
-            # Ensure times dictionary is initialized properly
-            # Store the time value directly in the model_results, similar to eval_tstr_final.py
-            model_results['times']['RLIG'] = rlig_time
-            
-            # Also keep the nested structure for compatibility
-            if 'training_time' not in model_results['times']:
-                model_results['times']['training_time'] = {}
-                
-            # Store the time value in the dictionary
-            model_results['times']['training_time']['rlig'] = rlig_time
-            model_results['bic_scores']['RLiG'] = rlig_model.best_score if hasattr(rlig_model, 'best_score') else None
-            
-            print(f"RLiG TSTR results: {rlig_results}")
-            print(f"RLiG - Time: {rlig_time:.2f}s")
-            
-            # Save the network structure visualization and synthetic data sample
-            dataset_name = model_results.get('dataset_name', 'unknown')
-            try:
-                # Create img directory if it doesn't exist
-                os.makedirs("img", exist_ok=True)
-                os.makedirs("train_data", exist_ok=True)
-                
-                # Save network visualization
-                model_graphviz = rlig_model.bayesian_network.to_graphviz()
-                model_graphviz.draw(f"img/rlig_{dataset_name}_network.png", prog="dot")
-                print(f"RLiG network visualization saved to img/rlig_{dataset_name}_network.png")
-                
-                # Save synthetic data sample
-                synthetic_data = rlig_model.sample(1000)
-                # Convert to DataFrame if it's a numpy array
-                if isinstance(synthetic_data, np.ndarray):
-                    # Create DataFrame with original column names
-                    columns = list(X_train.columns) + ['target']
-                    synthetic_data = pd.DataFrame(synthetic_data, columns=columns)
-                synthetic_data.to_csv(f"train_data/rlig_{dataset_name}_synthetic.csv", index=False)
-                print(f"RLiG synthetic data sample saved to train_data/rlig_{dataset_name}_synthetic.csv")
-            except Exception as e:
-                print(f"Error saving RLiG outputs: {e}")
-        except Exception as e:
-            print(f"Error evaluating RLiG model: {e}")
-    except Exception as e:
-        print(f"Error with RLiG: {e}")
-    
-    # Clean up to prevent memory issues
-    gc.collect()
-
-
-def train_and_evaluate_ganblr(train_data, X_test, y_test, model_results, n_samples):
-    """Train and evaluate GANBLR (Tree Search) model"""
-    if not PGMPY_AVAILABLE:
-        return
-        
-    print("\n--------------------------------------------------")
-    print("RUNNING TREE SEARCH FOR GANBLR STRUCTURE")
-    print("--------------------------------------------------")
-    start_time = time.time()
-    try:
-        ts = TreeSearch(train_data)
-        best_model_ts = ts.estimate()
-        bn_ts = train_bn(best_model_ts, train_data)
-        ts_time = time.time() - start_time
-        
-        if bn_ts is None:
-            return
-            
-        # Store BIC score and time
-        ts_bic = structure_score(bn_ts, train_data, scoring_method="bic-cg") if bn_ts else None
-        # Ensure times dictionary is initialized properly
-        if 'training_time' not in model_results['times']:
-            model_results['times']['training_time'] = {}
-            
-        # Store the time value directly in the model_results (like in eval_tstr_final.py)
-        model_results['times']['GANBLR'] = ts_time
-        
-        # Also keep the nested structure for compatibility
-        if 'training_time' not in model_results['times']:
-            model_results['times']['training_time'] = {}
-            
-        # Store the time value in the dictionary
-        model_results['times']['training_time']['ganblr'] = ts_time
-        model_results['bic_scores']['TS'] = ts_bic
-        
-        print(f"Tree Search - Time: {ts_time:.2f}s, BIC: {ts_bic}")
-        
-        # Evaluate GANBLR (BN with Tree Search)
-        print("\nEvaluating GANBLR (BN with Tree Search) using TSTR...")
-        try:
-            # Generate synthetic data
-            ts_synthetic = generate_bn_synthetic_data(bn_ts, train_data, n_samples=n_samples)
-            
-            # TSTR evaluation
-            ts_tstr = evaluate_tstr(ts_synthetic, X_test, y_test)
-            
-            # Store results
-            for model_name, acc in ts_tstr.items():
-                model_results['metrics'][f'GANBLR-{model_name}'] = acc
-            # Time is already stored using the training_time dictionary
-            
-            print(f"GANBLR - Time: {ts_time:.2f}s")
-            
-            # Save the network structure visualization and synthetic data sample
-            dataset_name = model_results.get('dataset_name', 'unknown')
-            try:
-                # Create directories if they don't exist
-                os.makedirs("img", exist_ok=True)
-                os.makedirs("train_data", exist_ok=True)
-                
-                # Save network visualization
-                bn_ts_viz = bn_ts.to_graphviz()
-                bn_ts_viz.draw(f"img/ganblr_{dataset_name}_network.png", prog="dot")
-                print(f"GANBLR network visualization saved to img/ganblr_{dataset_name}_network.png")
-                
-                # Save synthetic data using the helper function
-                save_synthetic_data(ts_synthetic, "ganblr", dataset_name)
-            except Exception as e:
-                print(f"Error saving GANBLR outputs: {e}")
-        except Exception as e:
-            print(f"Error evaluating GANBLR model: {e}")
-    except Exception as e:
-        print(f"Error with Tree Search: {e}")
-
-
-def train_and_evaluate_ganblrpp(train_data, X_test, y_test, model_results, n_samples):
-    """Train and evaluate GANBLR++ (Hill Climbing) model"""
-    if not PGMPY_AVAILABLE:
-        return
-        
-    print("\n--------------------------------------------------")
-    print("RUNNING HILL CLIMBING FOR GANBLR++ STRUCTURE")
-    print("--------------------------------------------------")
-    start_time = time.time()
-    try:
-        hc = HillClimbSearch(train_data)
-        best_model_hc = hc.estimate(scoring_method=BIC(train_data))
-        bn_hc = train_bn(best_model_hc, train_data)
-        hc_time = time.time() - start_time
-        
-        if bn_hc is None:
-            return
-            
-        # Store BIC score and time
-        hc_bic = structure_score(bn_hc, train_data, scoring_method="bic-cg") if bn_hc else None
-        # Ensure times dictionary is initialized properly
-        if 'training_time' not in model_results['times']:
-            model_results['times']['training_time'] = {}
-            
-        # Store the time value directly in the model_results (like in eval_tstr_final.py)
-        model_results['times']['GANBLR++'] = hc_time
-        
-        # Also keep the nested structure for compatibility
-        if 'training_time' not in model_results['times']:
-            model_results['times']['training_time'] = {}
-            
-        # Store the time value in the dictionary
-        model_results['times']['training_time']['ganblr++'] = hc_time
-        model_results['bic_scores']['HC'] = hc_bic
-        
-        print(f"Hill Climbing - Time: {hc_time:.2f}s, BIC: {hc_bic}")
-        
-        # Evaluate GANBLR++ (BN with Hill Climbing)
-        print("\nEvaluating GANBLR++ (BN with Hill Climbing) using TSTR...")
-        try:
-            # Generate synthetic data
-            hc_synthetic = generate_bn_synthetic_data(bn_hc, train_data, n_samples=n_samples)
-            
-            # TSTR evaluation
-            hc_tstr = evaluate_tstr(hc_synthetic, X_test, y_test)
-            
-            # Store results
-            for model_name, acc in hc_tstr.items():
-                model_results['metrics'][f'GANBLR++-{model_name}'] = acc
-            # Time is already stored using the training_time dictionary
-            
-            print(f"GANBLR++ - Time: {hc_time:.2f}s")
-            
-            # Save the network structure visualization and synthetic data sample
-            dataset_name = model_results.get('dataset_name', 'unknown')
-            try:
-                # Create directories if they don't exist
-                os.makedirs("img", exist_ok=True)
-                os.makedirs("train_data", exist_ok=True)
-                
-                # Save network visualization
-                bn_hc_viz = bn_hc.to_graphviz()
-                bn_hc_viz.draw(f"img/ganblrpp_{dataset_name}_network.png", prog="dot")
-                print(f"GANBLR++ network visualization saved to img/ganblrpp_{dataset_name}_network.png")
-                
-                # Save synthetic data using the helper function
-                save_synthetic_data(hc_synthetic, "ganblrpp", dataset_name)
-            except Exception as e:
-                print(f"Error saving GANBLR++ outputs: {e}")
-        except Exception as e:
-            print(f"Error evaluating GANBLR++ model: {e}")
-    except Exception as e:
-        print(f"Error with Hill Climbing: {e}")
-
-
-def train_and_evaluate_ctgan(X_train, y_train, X_test, y_test, model_results, n_samples, epochs=50):
-    """Train and evaluate CTGAN model"""
-    if not CTGAN_AVAILABLE:
-        return
-        
-    print("\n--------------------------------------------------")
-    print("EVALUATING CTGAN")
-    print("--------------------------------------------------")
-    start_time = time.time()
-    try:
-        # Prepare data for CTGAN (combine features and target)
-        ctgan_train_data = pd.concat([X_train, y_train], axis=1)
-        
-        # Identify categorical columns
-        discrete_columns = []
-        for col in ctgan_train_data.columns:
-            if len(np.unique(ctgan_train_data[col])) < 10:  # Heuristic for categorical
-                discrete_columns.append(col)
-        
-        # Train CTGAN
-        ctgan_model = train_ctgan(
-            ctgan_train_data, 
-            discrete_columns=discrete_columns,
-            epochs=epochs,  # Use parameter from arguments
-            batch_size=min(500, len(ctgan_train_data))  # Adjust batch size for small datasets
-        )
-        ctgan_time = time.time() - start_time
-        
-        if ctgan_model is None:
-            return
-            
-        # Generate synthetic data
-        ctgan_synthetic = generate_ctgan_synthetic_data(ctgan_model, ctgan_train_data, n_samples=n_samples)
-        
-        # TSTR evaluation
-        print("Performing TSTR evaluation for CTGAN...")
-        ctgan_tstr = evaluate_tstr(ctgan_synthetic, X_test, y_test)
-        
-        # Store results
-        for model_name, acc in ctgan_tstr.items():
-            model_results['metrics'][f'CTGAN-{model_name}'] = acc
-        # Ensure times dictionary is initialized properly
-        if 'training_time' not in model_results['times']:
-            model_results['times']['training_time'] = {}
-            
-        # Store the time value in the dictionary
-        model_results['times']['training_time']['ctgan'] = ctgan_time
-        
-        print(f"CTGAN - Time: {ctgan_time:.2f}s")
-        
-        # Save synthetic data sample
-        dataset_name = model_results.get('dataset_name', 'unknown')
-        try:
-            # Create directory if it doesn't exist
-            os.makedirs("train_data", exist_ok=True)
-            
-            # Save synthetic data using the helper function
-            save_synthetic_data(ctgan_synthetic, "ctgan", dataset_name)
-        except Exception as e:
-            print(f"Error saving CTGAN synthetic data: {e}")
-    except Exception as e:
-        print(f"Error evaluating CTGAN model: {e}")
-
-
-def train_and_evaluate_ctabgan(X_train, y_train, X_test, y_test, model_results, n_samples, epochs=50):
-    """Train and evaluate CTABGAN model"""
-    if not CTABGAN_AVAILABLE:
-        return
-        
-    print("\n--------------------------------------------------")
-    print("EVALUATING CTABGAN")
-    print("--------------------------------------------------")
-    start_time = time.time()
-    try:
-        # Identify categorical columns
-        categorical_columns = []
-        for col in X_train.columns:
-            if X_train[col].dtype == 'object' or len(np.unique(X_train[col])) < 10:
-                categorical_columns.append(col)
-        
-        # Train CTABGAN
-        ctabgan_model = train_ctabgan(
-            X_train, 
-            y_train,
-            categorical_columns=categorical_columns,
-            epochs=epochs
-        )
-        ctabgan_time = time.time() - start_time
-        
-        if ctabgan_model is None:
-            return
-            
-        # Prepare train data for synthetic data generation
-        train_data = pd.concat([X_train, y_train], axis=1)
-        
-        # Generate synthetic data
-        ctabgan_synthetic = generate_ctabgan_synthetic_data(ctabgan_model, train_data, n_samples=n_samples)
-        
-        # TSTR evaluation
-        print("Performing TSTR evaluation for CTABGAN...")
-        ctabgan_tstr = evaluate_tstr(ctabgan_synthetic, X_test, y_test)
-        
-        # Store results
-        for model_name, acc in ctabgan_tstr.items():
-            model_results['metrics'][f'CTABGAN-{model_name}'] = acc
-        # Ensure times dictionary is initialized properly
-        if 'training_time' not in model_results['times']:
-            model_results['times']['training_time'] = {}
-            
-        # Store the time value in the dictionary
-        model_results['times']['training_time']['ctabgan'] = ctabgan_time
-        
-        print(f"CTABGAN - Time: {ctabgan_time:.2f}s")
-        
-        # Save synthetic data sample
-        dataset_name = model_results.get('dataset_name', 'unknown')
-        try:
-            # Create directory if it doesn't exist
-            os.makedirs("train_data", exist_ok=True)
-            
-            # Save synthetic data using the helper function
-            save_synthetic_data(ctabgan_synthetic, "ctabgan", dataset_name)
-        except Exception as e:
-            print(f"Error saving CTABGAN synthetic data: {e}")
-    except Exception as e:
-        print(f"Error evaluating CTABGAN model: {e}")
-
-
-def train_and_evaluate_nb(X_train, y_train, X_test, y_test, train_data, model_results, n_samples):
-    """Train and evaluate Naive Bayes model"""
-    print("\n--------------------------------------------------")
-    print("EVALUATING NAIVE BAYES")
-    print("--------------------------------------------------")
-    start_time = time.time()
-    try:
-        nb = train_naive_bayes(X_train, y_train)
-        nb_time = time.time() - start_time
-        
-        if nb is None:
-            return
-            
-        # Generate synthetic data
-        nb_synthetic = generate_nb_synthetic_data(nb, X_train, y_train, n_samples=n_samples)
-        
-        # TSTR evaluation
-        print("Performing TSTR evaluation for Naive Bayes...")
-        nb_tstr = evaluate_tstr(nb_synthetic, X_test, y_test)
-        
-        # Store results
-        for model_name, acc in nb_tstr.items():
-            model_results['metrics'][f'NB-{model_name}'] = acc
-        # Ensure times dictionary is initialized properly
-        if 'training_time' not in model_results['times']:
-            model_results['times']['training_time'] = {}
-            
-        # Store the time value directly in the model_results (like in eval_tstr_final.py)
-        model_results['times']['NB'] = nb_time
-        
-        # Also keep the nested structure for compatibility
-        if 'training_time' not in model_results['times']:
-            model_results['times']['training_time'] = {}
-            
-        # Store the time value in the dictionary
-        model_results['times']['training_time']['nb'] = nb_time
-        model_results['bic_scores']['NB'] = get_gaussianNB_bic_score(nb, train_data) if nb else None
-        
-        print(f"Naive Bayes - Time: {nb_time:.2f}s")
-        
-        # Save synthetic data sample
-        dataset_name = model_results.get('dataset_name', 'unknown')
-        try:
-            # Create directory if it doesn't exist
-            os.makedirs("train_data", exist_ok=True)
-            
-            # Save synthetic data using the helper function
-            save_synthetic_data(nb_synthetic, "nb", dataset_name)
-        except Exception as e:
-            print(f"Error saving Naive Bayes synthetic data: {e}")
-    except Exception as e:
         print(f"Error with Naive Bayes: {e}")
 
 
@@ -3080,25 +2681,16 @@ def format_results(results):
         # Process times - directly use the times from data
         times_dict = {}
         
-        # Debug: print time data to see what we're working with
-        print(f"DEBUG - Time data for {dataset}: {data['times']}")
+        # Time data extraction from the results structure
         
+        # First, look for directly stored time values (non-nested, like RLIG, NB, etc.)
+        # These are stored with uppercase model names as keys, like in eval_tstr_final.py
         for time_key, time_value in data['times'].items():
-            if isinstance(time_value, dict):
-                for model_name, model_value in time_value.items():
-                    # Format as MODEL-TIME_TYPE
-                    model_upper = model_name.upper()
-                    if model_name.lower() == 'ganblr++':
-                        model_upper = 'GANBLR++'
-                    col_name = f"{model_upper}-{time_key}"
-                    times_dict[col_name] = model_value
-            else:
-                # This is for models where time is stored directly (not in a nested dict)
-                # Common structure in the working eval_tstr_final.py file
+            if not isinstance(time_value, dict):
+                # This is for models where time is stored directly with model name as key
                 times_dict[time_key] = time_value
                 
-        # Extract training times from nested dictionary structure
-        # This ensures we extract all time values from the 'training_time' nested dictionary
+        # Now check for any values in the nested 'training_time' structure
         if 'training_time' in data['times'] and isinstance(data['times']['training_time'], dict):
             for model_name, time_value in data['times']['training_time'].items():
                 # Format model name
@@ -3106,8 +2698,9 @@ def format_results(results):
                 if model_name.lower() == 'ganblr++':
                     model_upper = 'GANBLR++'
                 
-                # Add direct time entry for this model
-                times_dict[model_upper] = time_value
+                # If the model doesn't already have a time entry, add it
+                if model_upper not in times_dict:
+                    times_dict[model_upper] = time_value
                 
         time_results[dataset] = times_dict
         
