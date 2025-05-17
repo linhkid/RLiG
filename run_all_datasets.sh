@@ -43,6 +43,10 @@ run_dataset() {
         echo "Running WITH discretization (default)"
     fi
     
+    # Always add nested cross-validation
+    disc_option="$disc_option --nested-cv"
+    echo "Using nested cross-validation"
+    
     # Append discretization suffix to folder name
     folder_name="${folder_name}${disc_suffix}"
     
