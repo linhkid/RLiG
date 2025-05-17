@@ -5,7 +5,7 @@ This script implements a proper TSTR evaluation for generative models with expli
 of continuous variables using quantile-based binning (7 bins).
 
 This version is specifically designed to improve performance for models that work well
-with discretized data, particularly GReaT and TabSyn, while maintaining a fair comparison
+with discretized data, particularly GReaT and Distribution Sampling, while maintaining a fair comparison
 across all models. Quantile-based binning is used instead of uniform binning to better
 preserve the distribution of the original data, which is important for transformer-based 
 models and statistical models.
@@ -17,7 +17,7 @@ Models evaluated:
 - CTGAN: Conditional Tabular GAN
 - NaiveBayes: Simple baseline generative model
 - GReaT: Generation of Realistic Tabular data with transformers
-- TabSyn: Tabular data synthesis with statistical modeling
+- Distribution Sampling: Tabular data synthesis with statistical modeling
 
 The TSTR methodology:
 1. Train a generative model on real data (with discretized continuous variables)
@@ -123,18 +123,18 @@ except ImportError:
     GREAT_AVAILABLE = False
 
 try:
-    # Add tabsyn directory to Python path so imports work
+    # Add distribution sampling directory to Python path so imports work
     import sys
     import os
-    tabsyn_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tabsyn')
-    if tabsyn_path not in sys.path:
-        sys.path.append(tabsyn_path)
+    dist_sampl_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'distsampl')
+    if dist_sampl_path not in sys.path:
+        sys.path.append(dist_sampl_path)
     
-    from tabsyn.tabular_gan import TabularGAN
-    TABSYN_AVAILABLE = True
+    from distsampl.dist_sampling import DistSampling
+    DIST_SAMPL_AVAILABLE = True
 except ImportError as e:
-    print(f"TabSyn is not available. Will be skipped. Error: {e}")
-    TABSYN_AVAILABLE = False
+    print(f"Distribution Sampling is not available. Will be skipped. Error: {e}")
+    DIST_SAMPL_AVAILABLE = False
 
 
 # ============= DATA HANDLING FUNCTIONS =============
@@ -931,11 +931,11 @@ def train_great(X_train, y_train, batch_size=1, epochs=1):
         return None
 
 
-def train_tabsyn(X_train, y_train, epochs=50, random_seed=42):
-    """Train the TabSyn tabular data synthesizer from Amazon Science
+def train_dist_sampl(X_train, y_train, epochs=50, random_seed=42):
+    """Train the Distribution Sampling synthesizer
     
-    TabSyn is a tabular data synthesis method that uses a GAN architecture
-    with a pre-trained transformer encoder and a distribution-aware decoder.
+    Distribution Sampling is a tabular data synthesis method that uses statistical
+    distributions to model and generate synthetic data.
     
     Parameters:
     -----------
@@ -948,11 +948,11 @@ def train_tabsyn(X_train, y_train, epochs=50, random_seed=42):
     random_seed : int
         Random seed for reproducibility
     """
-    if not TABSYN_AVAILABLE:
+    if not DIST_SAMPL_AVAILABLE:
         return None
         
     try:
-        # Prepare data for TabSyn (we need to combine X and y)
+        # Prepare data for Distribution Sampling (we need to combine X and y)
         combined_data = pd.concat([X_train, y_train], axis=1)
         
         # Identify categorical columns
@@ -961,9 +961,9 @@ def train_tabsyn(X_train, y_train, epochs=50, random_seed=42):
             if len(np.unique(combined_data[col])) < 10:  # Heuristic for categorical columns
                 categorical_cols.append(col)
         
-        # Initialize TabularGAN with conservative settings and consistent random seed
-        print(f"Training TabSyn with {epochs} epochs and random_seed={random_seed}")
-        tabsyn_model = TabularGAN(
+        # Initialize DistSampling with conservative settings and consistent random seed
+        print(f"Training Distribution Sampling with {epochs} epochs and random_seed={random_seed}")
+        dist_sampl_model = DistSampling(
             train_data=combined_data,
             categorical_columns=categorical_cols,
             epochs=epochs,
@@ -972,10 +972,10 @@ def train_tabsyn(X_train, y_train, epochs=50, random_seed=42):
         )
         
         # Train the model
-        tabsyn_model.fit()
-        return tabsyn_model
+        dist_sampl_model.fit()
+        return dist_sampl_model
     except Exception as e:
-        print(f"Error training TabSyn model: {e}")
+        print(f"Error training Distribution Sampling model: {e}")
         return None
 
 
@@ -1299,9 +1299,9 @@ def generate_great_synthetic_data(great_model, train_data, n_samples=None):
             return None
 
 
-def generate_tabsyn_synthetic_data(tabsyn_model, train_data, n_samples=None):
-    """Generate synthetic data from TabSyn model"""
-    if not TABSYN_AVAILABLE or tabsyn_model is None:
+def generate_dist_sampl_synthetic_data(dist_sampl_model, train_data, n_samples=None):
+    """Generate synthetic data from Distribution Sampling model"""
+    if not DIST_SAMPL_AVAILABLE or dist_sampl_model is None:
         return None
 
     if n_samples is None:
@@ -1320,24 +1320,24 @@ def generate_tabsyn_synthetic_data(tabsyn_model, train_data, n_samples=None):
             for i in range(num_batches):
                 print(f"Generating batch {i+1}/{num_batches}")
                 this_batch_size = min(batch_size, n_samples - i*batch_size)
-                batch = tabsyn_model.sample(this_batch_size)
+                batch = dist_sampl_model.sample(this_batch_size)
                 batches.append(batch)
                 
             synthetic_data = pd.concat(batches, ignore_index=True)
         else:
             # Regular generation for other platforms
-            synthetic_data = tabsyn_model.sample(n_samples)
+            synthetic_data = dist_sampl_model.sample(n_samples)
             
-        print(f"Generated {len(synthetic_data)} synthetic samples from TabSyn")
+        print(f"Generated {len(synthetic_data)} synthetic samples from Distribution Sampling")
         return synthetic_data
     except Exception as e:
-        print(f"Error generating synthetic data from TabSyn: {e}")
+        print(f"Error generating synthetic data from Distribution Sampling: {e}")
         
         # Fallback: if sampling fails, try to sample a smaller number
         try:
             fallback_samples = min(n_samples, 500)
             print(f"Trying fallback with {fallback_samples} samples")
-            synthetic_data = tabsyn_model.sample(fallback_samples)
+            synthetic_data = dist_sampl_model.sample(fallback_samples)
             print(f"Generated {len(synthetic_data)} synthetic samples as fallback")
             return synthetic_data
         except Exception as fallback_error:
@@ -1857,7 +1857,7 @@ def get_gaussianNB_bic_score(model, data):
 
 
 def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episodes=2, rlig_epochs=5,
-                  ctgan_epochs=50, great_bs=1, great_epochs=5, tabsyn_epochs=50, verbose=False, discretize=True,
+                  ctgan_epochs=50, great_bs=1, great_epochs=5, dist_sampl_epochs=50, verbose=False, discretize=True,
                   use_cv=False, n_folds=2, nested_cv=False):
     """
     Compare generative models using TSTR methodology as described in the paper
@@ -1869,13 +1869,13 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
         Dictionary mapping dataset names to dataset sources
     models : list or None
         List of models to evaluate. If None, evaluate all available models.
-        Options: 'rlig', 'ganblr', 'ganblr++', 'ctgan', 'nb', 'great', 'tabsyn'
+        Options: 'rlig', 'ganblr', 'ganblr++', 'ctgan', 'nb', 'great', 'dist_sampl'
     n_rounds : int
         Number of rounds of cross-validation to run (default: 3)
     # ... (other parameters)
     """
     if models is None:
-        models = ['rlig', 'ganblr', 'ganblr++', 'ctgan', 'ctabgan', 'nb', 'great', 'tabsyn']
+        models = ['rlig', 'ganblr', 'ganblr++', 'ctgan', 'ctabgan', 'nb', 'great', 'dist_sampl']
 
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -1901,7 +1901,7 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
         print(f"  - RLiG epochs: {rlig_epochs}")
         print(f"  - CTGAN epochs: {ctgan_epochs}")
         print(f"  - GReaT epochs: {great_epochs}") # Corrected from great_bs to great_epochs for print
-        print(f"  - TabSyn epochs: {tabsyn_epochs}")
+        print(f"  - DistSampl epochs: {dist_sampl_epochs}")
 
     synthetic_data_cache = {}
     print("\n\n== GENERATING SYNTHETIC DATA FOR ALL MODELS ==\n")
@@ -2170,31 +2170,31 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
                 print(f"Error generating GReaT synthetic data: {e}")
                 synthetic_data_cache[name]['models']['great'] = {'data': None, 'train_time': model_train_time}
 
-        # --- TabSyn ---
-        if 'tabsyn' in models and TABSYN_AVAILABLE:
-            print("\n-- Generating synthetic data for TabSyn --")
+        # --- DistSampl ---
+        if 'dist_sampl' in models and DIST_SAMPL_AVAILABLE:
+            print("\n-- Generating synthetic data for Distribution Sampling --")
             model_train_time = 0.0
-            tabsyn_model = None
+            dist_sampl_model = None
             try:
                 # Similar to GReaT, ensure X_train_for_gen_model, y_train_for_gen_model are suitable.
                 start_model_time = time.time()
-                tabsyn_model = train_tabsyn(X_train_for_gen_model, y_train_for_gen_model, epochs=tabsyn_epochs, random_seed=seed)
+                dist_sampl_model = train_dist_sampl(X_train_for_gen_model, y_train_for_gen_model, epochs=dist_sampl_epochs, random_seed=seed)
                 model_train_time = time.time() - start_model_time
 
-                if tabsyn_model:
-                    tabsyn_train_data_feed = pd.concat([X_train_for_gen_model, y_train_for_gen_model], axis=1) # For context
-                    tabsyn_synthetic = generate_tabsyn_synthetic_data(tabsyn_model, tabsyn_train_data_feed, n_samples=n_samples)
-                    if tabsyn_synthetic is not None:
-                        synthetic_data_cache[name]['models']['tabsyn'] = {
-                            'data': tabsyn_synthetic,
+                if dist_sampl_model:
+                    dist_sampl_train_data_feed = pd.concat([X_train_for_gen_model, y_train_for_gen_model], axis=1) # For context
+                    dist_sampl_synthetic = generate_dist_sampl_synthetic_data(dist_sampl_model, dist_sampl_train_data_feed, n_samples=n_samples)
+                    if dist_sampl_synthetic is not None:
+                        synthetic_data_cache[name]['models']['dist_sampl'] = {
+                            'data': dist_sampl_synthetic,
                             'train_time': model_train_time # Store actual time
                         }
-                        save_synthetic_data(tabsyn_synthetic, "tabsyn", name)
+                        save_synthetic_data(dist_sampl_synthetic, "dist_sampl", name)
                 else:
-                    synthetic_data_cache[name]['models']['tabsyn'] = {'data': None, 'train_time': model_train_time}
+                    synthetic_data_cache[name]['models']['dist_sampl'] = {'data': None, 'train_time': model_train_time}
             except Exception as e:
-                print(f"Error generating TabSyn synthetic data: {e}")
-                synthetic_data_cache[name]['models']['tabsyn'] = {'data': None, 'train_time': model_train_time}
+                print(f"Error generating Distribution Sampling synthetic data: {e}")
+                synthetic_data_cache[name]['models']['dist_sampl'] = {'data': None, 'train_time': model_train_time}
 
 
     # Configure approach based on CV and nested CV options
@@ -2331,7 +2331,7 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
                         # Standard TSTR evaluation for other models
                         test_X_current = X_test_trad
                         test_y_current = y_test_trad
-                        if model_name_trad in ['great', 'tabsyn'] and 'X_test' in model_cache_trad and 'y_test' in model_cache_trad:
+                        if model_name_trad in ['great', 'dist_sampl'] and 'X_test' in model_cache_trad and 'y_test' in model_cache_trad:
                              # This logic for model-specific test data seems less common if preprocessing is unified.
                              # test_X_current = model_cache_trad['X_test']
                              # test_y_current = model_cache_trad['y_test']
@@ -2425,7 +2425,7 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
 def format_results(results):
     """Format the results into DataFrames for easier analysis"""
     # Define expected models and metric types for consistent column ordering
-    models = ['ganblr++', 'ganblr', 'ctgan', 'ctabgan', 'nb', 'rlig', 'great', 'tabsyn']
+    models = ['ganblr++', 'ganblr', 'ctgan', 'ctabgan', 'nb', 'rlig', 'great', 'dist_sampl']
     metric_types = ['LR', 'MLP', 'RF', 'XGB', 'AVG']
     
     # Initialize results dictionaries
@@ -2576,7 +2576,7 @@ def parse_args():
     
     print("\nTSTR Evaluation Framework for Generative Models")
     print("===============================================")
-    print("Models supported: RLiG, GANBLR, GANBLR++, CTGAN, Naive Bayes, GReaT, TabSyn")
+    print("Models supported: RLiG, GANBLR, GANBLR++, CTGAN, Naive Bayes, GReaT, Distribution Sampling")
     print("Classifiers: LogisticRegression, MLP, RandomForest, XGBoost (if installed)")
     print("Running with command line arguments enables customization of datasets, models, and parameters.")
     print("\nDiscretization control:")
@@ -2588,8 +2588,8 @@ def parse_args():
         "--models", 
         type=str, 
         nargs="+", 
-        default=['rlig', 'ganblr', 'ganblr++', 'ctgan', 'ctabgan', 'nb', 'great', 'tabsyn'],
-        help="List of models to evaluate. Options: rlig, ganblr, ganblr++, ctgan, ctabgan, nb, great, tabsyn"
+        default=['rlig', 'ganblr', 'ganblr++', 'ctgan', 'ctabgan', 'nb', 'great', 'dist_sampl'],
+        help="List of models to evaluate. Options: rlig, ganblr, ganblr++, ctgan, ctabgan, nb, great, dist_sampl"
     )
 
     """PokerHand: 158
@@ -2739,10 +2739,10 @@ def parse_args():
     )
     
     parser.add_argument(
-        "--tabsyn_epochs",
+        "--dist_sampl_epochs",
         type=int,
         default=50,
-        help="Number of epochs for TabSyn training"
+        help="Number of epochs for Distribution Sampling training"
     )
     
     # Verbose mode
@@ -2807,7 +2807,7 @@ if __name__ == "__main__":
         ctgan_epochs=args.ctgan_epochs,
         great_bs=args.great_bs,
         great_epochs=args.great_epochs,
-        tabsyn_epochs=args.tabsyn_epochs,
+        dist_sampl_epochs=args.dist_sampl_epochs,
         verbose=args.verbose,
         discretize=args.discretize,
         use_cv=args.use_cv,
