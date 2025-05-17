@@ -52,6 +52,8 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.neural_network import MLPClassifier
 from sklearn.ensemble import RandomForestClassifier
 
+from torch.utils.data import DataLoader
+
 # XGBoost for additional classifier
 try:
     import xgboost as xgb
@@ -135,6 +137,19 @@ try:
 except ImportError as e:
     print(f"Distribution Sampling is not available. Will be skipped. Error: {e}")
     DIST_SAMPL_AVAILABLE = False
+
+# TabDiff
+try:
+    tabdiff_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'TabDiff')
+    if tabdiff_path not in sys.path:
+        sys.path.append(tabdiff_path)
+
+    from tabdiff_module import run_tabdiff
+
+    TABDIFF_AVAILABLE = True
+except ImportError as e:
+    print(f"TabDiff is not available. Will be skipped. Error: {e}")
+    TABDIFF_AVAILABLE = False
 
 
 # ============= DATA HANDLING FUNCTIONS =============
@@ -979,6 +994,144 @@ def train_dist_sampl(X_train, y_train, epochs=50, random_seed=42):
         return None
 
 
+# Train TabDiff
+def train_tabdiff(train_data, train_loader, name, epochs=50, random_seed=42):
+    # run_tabdiff(config_path="configs/tabdiff_config.yaml")
+
+    import json
+    info_path = f'data/Info/{name}.json'
+    with open(info_path, 'r') as f:
+        info = json.load(f)
+
+    curr_dir = os.path.dirname(os.path.abspath(__file__))
+    if not os.path.exists(os.path.join(curr_dir, "ckpt")):
+        os.makedirs(os.path.join(curr_dir, "ckpt"), exist_ok=True)
+
+    if not os.path.exists(os.path.join(curr_dir, "result")):
+        os.makedirs(os.path.join(curr_dir, "result"), exist_ok=True)
+
+    model_save_path = f'{curr_dir}/ckpt/{name}/'
+    result_save_path = model_save_path.replace('ckpt', 'result')  # i.e., f'{curr_dir}/results/{dataname}/'
+
+    if model_save_path is not None:
+        if not os.path.exists(model_save_path):
+            os.makedirs(model_save_path)
+    if result_save_path is not None:
+        if not os.path.exists(result_save_path):
+            os.makedirs(result_save_path)
+
+    metric_list = ["density"]
+    ## Load Metrics
+    real_data_path = f'synthetic/{name}/real.csv'
+    test_data_path = f'synthetic/{name}/test.csv'
+    val_data_path = f'synthetic/{name}/val.csv'
+    if not os.path.exists(val_data_path):
+        print(
+            f"{name} does not have its validation set. During MLE evaluation, a validation set will be splitted from the training set!")
+        val_data_path = None
+    from TabDiff.tabdiff.metrics import TabMetrics
+    metrics = TabMetrics(real_data_path, test_data_path, val_data_path, info, device, metric_list=metric_list)
+
+    # from TabDiff.utils_train import TabDiffDataset
+    # data_dir = f'data/{name}'
+    # train_data = TabDiffDataset(name, data_dir, info)
+    d_numerical, categories = train_data.d_numerical, train_data.categories
+    print("categories", categories)
+
+    from TabDiff.tabdiff.modules.main_modules import UniModMLP
+    from TabDiff.tabdiff.modules.main_modules import Model
+    backbone = UniModMLP(
+        d_numerical=d_numerical,
+        categories=(categories + 1).tolist(),  # add one for the mask category,
+        num_layers=2,
+        d_token=4,
+        n_head=1,
+        factor=32,
+        bias=True,
+        dim_t=1024,
+        use_mlp=True
+
+    )
+    model = Model(backbone, precond=True, sigma_data=1.0, net_conditioning="sigma")
+    model.to(device)
+
+    from TabDiff.tabdiff.models.unified_ctime_diffusion import UnifiedCtimeDiffusion
+
+    diffusion = UnifiedCtimeDiffusion(
+        num_classes=categories,
+        num_numerical_features=d_numerical,
+        denoise_fn=model,
+        y_only_model=None,
+        device=device,
+        num_timesteps=50,
+        scheduler='power_mean',  # 'power_mean', 'power_mean_unified', 'power_mean_per_column'
+        cat_scheduler='log_linear_per_column',  # 'log_linear', 'log_linear_unified', 'log_linear_per_column'
+        noise_dist='uniform_t',  # 'uniform_t' or 'log_norm'
+        noise_dist_params={'P_mean': -1.2, 'P_std': 1.2},
+        sigma_min=0.002,
+        noise_schedule_params={"sigma_max": 80,
+                               "rho": 7,
+                               "eps_max": 1e-3,
+                               "eps_min": 1e-5,
+                               "rho_init": 7.0,
+                               "rho_offset": 5.0,
+                               "k_init": -6.0,
+                               "k_offset": 1.0},
+        edm_params={"precond": True,
+                    "sigma_data": 1.0,
+                    "net_conditioning": "sigma"},
+        sampler_params={"stochastic_sampler": True,
+                        "second_order_correction": True}
+    )
+    num_params = sum(p.numel() for p in diffusion.parameters())
+    print("The number of parameters = ", num_params)
+    diffusion.to(device)
+    diffusion.train()
+    from TabDiff.tabdiff.trainer import Trainer
+    from TabDiff.utils_train import TabDiffDataset
+    data_dir = f'data/{name}'
+    val_data = TabDiffDataset(name, data_dir, info, isTrain=False)
+
+    ## Disable Wandb
+    import wandb
+    project_name = f"tabdiff_{name}"
+    logger = wandb.init(
+        project=project_name,
+        name=None,
+        config=None,
+        mode='disabled',
+    )
+    trainer = Trainer(
+        diffusion,
+        train_loader,
+        train_data,
+        val_data,
+        metrics,
+        logger,
+        steps=2,
+        lr=0.001,
+        weight_decay=0,
+        ema_decay=0.997,
+        batch_size=4096,
+        check_val_every=2000,
+        lr_scheduler="reduce_lr_on_plateau",
+        factor=0.90,  # hyperparam for reduce_lr_on_plateau
+        reduce_lr_patience=50,  # hyperparam for reduce_lr_on_plateau
+        closs_weight_schedule="anneal",
+        c_lambda=1.0,
+        d_lambda=1.0,
+        sample_batch_size=10000,
+        num_samples_to_generate=None,
+        model_save_path=model_save_path,
+        result_save_path=result_save_path,
+        device=device,
+        ckpt_path=None,
+        y_only=False
+    )
+    trainer.run_loop()
+    return trainer
+
+
 # ============= SYNTHETIC DATA SAVING HELPER =============
 
 def save_synthetic_data(synthetic_data, model_name, dataset_name, directory="train_data"):
@@ -1343,6 +1496,58 @@ def generate_dist_sampl_synthetic_data(dist_sampl_model, train_data, n_samples=N
         except Exception as fallback_error:
             print(f"Fallback also failed: {fallback_error}")
             return None
+
+
+# Generate synthetic data
+def generate_tabdiff_synthetic_data(tabdiff_model, train_data, n_samples=None):
+    """Generate synthetic data from TABDIFF model"""
+    if not TABDIFF_AVAILABLE or tabdiff_model is None:
+        return None
+
+    if n_samples is None:
+        n_samples = len(train_data)
+
+    # try:
+    # For M1/M2 Macs, generate in smaller batches
+    import os
+    if hasattr(os, 'uname') and os.uname().machine == 'arm64' and n_samples > 500:
+        print(f"Generating {n_samples} samples in smaller batches for Apple Silicon compatibility")
+        batch_size = 500
+        # num_batches = (n_samples + batch_size - 1) // batch_size  # Ceiling division
+        num_batches = 2
+
+        # Generate in batches and concatenate
+        batches = []
+        for i in range(num_batches):
+            print(f"Generating batch {i + 1}/{num_batches}")
+            this_batch_size = min(batch_size, n_samples - i * batch_size)
+            tabdiff_model.diffusion.eval()
+            batch = tabdiff_model.sample_synthetic(this_batch_size)
+            batches.append(batch)
+
+        synthetic_data = pd.concat(batches, ignore_index=True)
+    else:
+        # Regular generation for other platforms
+        tabdiff_model.diffusion.eval()
+        synthetic_data = tabdiff_model.sample_synthetic(n_samples, ema=True)
+
+    print(f"Generated {len(synthetic_data)} synthetic samples from TABDIFF")
+    return synthetic_data
+    # except Exception as e:
+    #     print(f"Error generating synthetic data from TABDIFF: {e}")
+
+    # # Fallback: if sampling fails, try to sample a smaller number
+    # try:
+    #     fallback_samples = min(n_samples, 500)
+    #     print(f"Trying fallback with {fallback_samples} samples")
+    #     tabdiff_model.diffusion.eval()
+    #     synthetic_data = tabdiff_model.sample_synthetic(fallback_samples)
+    #     print(f"Generated {len(synthetic_data)} synthetic samples as fallback")
+    #     return synthetic_data
+    # except Exception as fallback_error:
+    #     print(f"Fallback also failed: {fallback_error}")
+    #     return None
+
 
 
 # ============= EVALUATION FUNCTIONS =============
@@ -1759,47 +1964,115 @@ def evaluate_tstr(synthetic_data, X_test, y_test, target_col='target'):
                 categories.append(np.union1d(syn_X[col].unique(), X_test[col].unique()))
 
         for name, model in models.items():
-            try:
-                print(f"Training {name} on synthetic data...")
+            # try:
+            print(f"Training {name} on synthetic data...")
+
+            # Print label information
+            print(f"Synthetic labels: {np.unique(syn_y)}")
+            print(f"Test labels: {np.unique(y_test)}")
+
+            # Check if there's a shift in labels (e.g., 0-based vs 1-based indexing)
+            if np.min(syn_y) == 0 and np.min(y_test) == 1:
+                # Option 1: Adjust test labels to match synthetic (subtract 1)
+                y_test_adjusted = y_test - 1
+                print(f"Adjusted test labels: {np.unique(y_test_adjusted)}")
+
+                # Create and train pipeline
                 pipeline = Pipeline([
-                    ('encoder', OneHotEncoder(categories=categories, handle_unknown='ignore')),
+                    ('encoder', OneHotEncoder(handle_unknown='ignore')),
                     ('model', model)
                 ])
 
-                # Train on synthetic data
-                try:
-                    # Try to fit with sklearn's error handling
-                    pipeline.fit(syn_X, syn_y)
+                pipeline.fit(syn_X, syn_y)
 
-                    # Test on real data
-                    y_pred = pipeline.predict(X_test)
-                    acc = accuracy_score(y_test, y_pred)
-                    results[name] = acc
-                    print(f"{name} TSTR accuracy: {acc:.4f}")
-                except ValueError as ve:
-                    print(f"Fitting error for {name}: {ve}")
-                    # Try a backup approach if the error is about label types
-                    if "Unknown label type" in str(ve):
-                        try:
-                            print(f"Attempting to convert target variables to int")
-                            # Convert both target variables to integers
-                            syn_y_int = syn_y.astype(int)
-                            y_test_int = y_test.astype(int)
+                # Test with adjusted labels
+                y_pred_adjusted = pipeline.predict(X_test)
+                y_pred = y_pred_adjusted + 1  # Convert back to original scale
 
-                            # Try fitting with the converted targets
-                            pipeline.fit(syn_X, syn_y_int)
-                            y_pred = pipeline.predict(X_test)
-                            acc = accuracy_score(y_test_int, y_pred)
-                            results[name] = acc
-                            print(f"{name} TSTR accuracy (with int conversion): {acc:.4f}")
-                        except Exception as backup_error:
-                            print(f"Backup approach failed: {backup_error}")
-                            results[name] = None
-                    else:
-                        results[name] = None
-            except Exception as e:
-                print(f"Error evaluating {name}: {e}")
-                results[name] = None
+            elif np.min(syn_y) == 1 and np.min(y_test) == 0:
+                # Option 2: Adjust synthetic labels to match test (subtract 1)
+                syn_y_adjusted = syn_y - 1
+                print(f"Adjusted synthetic labels: {np.unique(syn_y_adjusted)}")
+
+                # Create and train pipeline
+                pipeline = Pipeline([
+                    ('encoder', OneHotEncoder(handle_unknown='ignore')),
+                    ('model', model)
+                ])
+
+                pipeline.fit(syn_X, syn_y_adjusted)
+
+                # Test with original labels
+                y_pred = pipeline.predict(X_test)
+
+            else:
+                # Option 3: For other cases, just align both to 0-based
+                offset_syn = np.min(syn_y)
+                offset_test = np.min(y_test)
+
+                syn_y_adjusted = syn_y - offset_syn
+                y_test_adjusted = y_test - offset_test
+
+                print(f"After adjustment - synthetic: {np.unique(syn_y_adjusted)}, test: {np.unique(y_test_adjusted)}")
+
+                # Create and train pipeline
+                pipeline = Pipeline([
+                    ('encoder', OneHotEncoder(handle_unknown='ignore')),
+                    ('model', model)
+                ])
+
+                pipeline.fit(syn_X, syn_y_adjusted)
+
+                # Test with adjusted labels
+                y_pred_adjusted = pipeline.predict(X_test)
+                y_pred = y_pred_adjusted + offset_test  # Convert back to original scale
+
+            # Calculate accuracy
+            acc = accuracy_score(y_test, y_pred)
+            results[name] = acc
+            print(f"{name} TSTR accuracy: {acc:.4f}")
+
+
+            # print(f"Training {name} on synthetic data...")
+            # pipeline = Pipeline([
+            #     ('encoder', OneHotEncoder(categories=categories, handle_unknown='ignore')),
+            #     ('model', model)
+            # ])
+            #
+            # # Train on synthetic data
+            # # try:
+            # # Try to fit with sklearn's error handling
+            # pipeline.fit(syn_X, syn_y)
+            #
+            # # Test on real data
+            # y_pred = pipeline.predict(X_test)
+            # acc = accuracy_score(y_test, y_pred)
+            # results[name] = acc
+            # print(f"{name} TSTR accuracy: {acc:.4f}")
+                # except ValueError as ve:
+                #     print(f"Fitting error for {name}: {ve}")
+                #     # Try a backup approach if the error is about label types
+                #     if "Unknown label type" in str(ve):
+                #         try:
+                #             print(f"Attempting to convert target variables to int")
+                #             # Convert both target variables to integers
+                #             syn_y_int = syn_y.astype(int)
+                #             y_test_int = y_test.astype(int)
+                #
+                #             # Try fitting with the converted targets
+                #             pipeline.fit(syn_X, syn_y_int)
+                #             y_pred = pipeline.predict(X_test)
+                #             acc = accuracy_score(y_test_int, y_pred)
+                #             results[name] = acc
+                #             print(f"{name} TSTR accuracy (with int conversion): {acc:.4f}")
+                #         except Exception as backup_error:
+                #             print(f"Backup approach failed: {backup_error}")
+                #             results[name] = None
+                #     else:
+                #         results[name] = None
+            # except Exception as e:
+            #     print(f"Error evaluating {name}: {e}")
+            #     results[name] = None
 
         # Calculate average accuracy across all models (as done in the paper)
         valid_accs = [acc for acc in results.values() if acc is not None]
@@ -1858,7 +2131,7 @@ def get_gaussianNB_bic_score(model, data):
 
 def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episodes=2, rlig_epochs=5,
                   ctgan_epochs=50, great_bs=1, great_epochs=5, dist_sampl_epochs=50, verbose=False, discretize=True,
-                  use_cv=False, n_folds=2, nested_cv=False):
+                  use_cv=False, n_folds=2, nested_cv=False, tabdiff_epochs=5):
     """
     Compare generative models using TSTR methodology as described in the paper
     with multiple rounds of cross-validation for robustness
@@ -1875,7 +2148,7 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
     # ... (other parameters)
     """
     if models is None:
-        models = ['rlig', 'ganblr', 'ganblr++', 'ctgan', 'ctabgan', 'nb', 'great', 'dist_sampl']
+        models = ['rlig', 'ganblr', 'ganblr++', 'ctgan', 'ctabgan', 'nb', 'great', 'dist_sampl', 'tabdiff']
 
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -1902,6 +2175,8 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
         print(f"  - CTGAN epochs: {ctgan_epochs}")
         print(f"  - GReaT epochs: {great_epochs}") # Corrected from great_bs to great_epochs for print
         print(f"  - DistSampl epochs: {dist_sampl_epochs}")
+        print(f"  - TabDiff epochs: {tabdiff_epochs}")
+
 
     synthetic_data_cache = {}
     print("\n\n== GENERATING SYNTHETIC DATA FOR ALL MODELS ==\n")
@@ -2196,6 +2471,75 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
                 print(f"Error generating Distribution Sampling synthetic data: {e}")
                 synthetic_data_cache[name]['models']['dist_sampl'] = {'data': None, 'train_time': model_train_time}
 
+
+        # --- TabDiff ---
+        if 'tabdiff' in models and TABDIFF_AVAILABLE:
+            print("\n-- Generating synthetic data for TabDiff --")
+            # try:
+            # Get data and preprocess based on discretization flag for TabDiff
+            X_train_tabdiff, X_test_tabdiff, y_train_tabdiff, y_test_tabdiff = (
+                preprocess_data(X, y, discretize=discretize, model_name='tabdiff')
+            )
+            print("Shape of X_train_tabdiff: ", X_train_tabdiff.shape)
+            print("Shape of X_test_tabdiff: ", X_test_tabdiff.shape)
+
+            # from _utils import save_to_csv
+            # # Save train data
+            # save_to_csv(X_train_tabdiff, y_train_tabdiff, f"data/{name}", "train.csv")
+            #
+            # # Save test data
+            # save_to_csv(X_test_tabdiff, y_test_tabdiff, f"data/{name}", "test.csv")
+            #
+            # # from TabDiff.tabdiff_data_loader import create_tabdiff_dataloader
+            # # batch_size = 256
+            # # train_loader = create_tabdiff_dataloader(X_train_tabdiff, y_train_tabdiff,
+            # #                                          batch_size=batch_size)
+
+            import json
+            info_path = f'data/Info/{name}.json'
+            with open(info_path, 'r') as f:
+                info = json.load(f)
+
+
+
+            from TabDiff.utils_train import TabDiffDataset
+            data_dir = f'data/{name}'
+            print("Info loaded", info, name, data_dir)
+            train_data = TabDiffDataset(name, data_dir, info)
+            d_numerical, categories = train_data.d_numerical, train_data.categories
+            print("categories", categories)
+
+            batch_size = 256
+
+            train_loader = DataLoader(
+                train_data,
+                batch_size=batch_size,
+                shuffle=True,
+                num_workers=4,
+            )
+
+            # Train TabDiff model with consistent random seed
+            tabdiff_model = train_tabdiff(train_data=train_data, train_loader=train_loader, name=name,
+                                          epochs=tabdiff_epochs, random_seed=seed)
+
+            if tabdiff_model:
+                # Generate synthetic data
+                tabdiff_synthetic = generate_tabdiff_synthetic_data(tabdiff_model, train_data, n_samples=10)
+
+                if tabdiff_synthetic is not None:
+                    # Store in cache
+                    synthetic_data_cache[name]['models']['tabdiff'] = {
+                        'data': tabdiff_synthetic,
+                        'X_test': X_test_tabdiff,
+                        'y_test': y_test_tabdiff
+                    }
+
+                    # Save synthetic data
+                    os.makedirs("train_data", exist_ok=True)
+                    tabdiff_synthetic.head(1000).to_csv(f"train_data/tabdiff_{name}_synthetic.csv", index=False)
+                    print(f"TabDiff synthetic data saved to train_data/tabdiff_{name}_synthetic.csv")
+            # except Exception as e:
+            #     print(f"Error generating TabDiff synthetic data: {e}")
 
     # Configure approach based on CV and nested CV options
     if nested_cv:
@@ -2588,8 +2932,8 @@ def parse_args():
         "--models", 
         type=str, 
         nargs="+", 
-        default=['rlig', 'ganblr', 'ganblr++', 'ctgan', 'ctabgan', 'nb', 'great', 'dist_sampl'],
-        help="List of models to evaluate. Options: rlig, ganblr, ganblr++, ctgan, ctabgan, nb, great, dist_sampl"
+        default=['rlig', 'ganblr', 'ganblr++', 'ctgan', 'ctabgan', 'nb', 'great', 'dist_sampl', 'tabdiff'],
+        help="List of models to evaluate. Options: rlig, ganblr, ganblr++, ctgan, ctabgan, nb, great, dist_sampl, tab_diff"
     )
 
     """PokerHand: 158
@@ -2622,8 +2966,9 @@ def parse_args():
     parser.add_argument(
         "--uci_ids", 
         type=int, 
-        nargs="+", 
-        default=[545, 101, 158, 26, 27, 2, 22, 59, 159, 76, 864, 19, 863],  # Default: Rice and TicTacToe
+        nargs="+",
+        default=[2],
+        # default=[545, 101, 158, 26, 27, 2, 22, 59, 159, 76, 864, 19, 863],  # Default: Rice and TicTacToe
         help="List of UCI dataset IDs to use"
     )
     
