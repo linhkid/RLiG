@@ -517,7 +517,7 @@ def train_tabdiff(train_data, train_loader, name, epochs=50, random_seed=42):
     # run_tabdiff(config_path="configs/tabdiff_config.yaml")
 
     import json
-    info_path = 'data/Info/Rice.json'
+    info_path = 'data/Info/adult.json'
     with open(info_path, 'r') as f:
         info = json.load(f)
 
@@ -884,7 +884,8 @@ def generate_tabdiff_synthetic_data(tabdiff_model, train_data, n_samples=None):
     if hasattr(os, 'uname') and os.uname().machine == 'arm64' and n_samples > 500:
         print(f"Generating {n_samples} samples in smaller batches for Apple Silicon compatibility")
         batch_size = 500
-        num_batches = (n_samples + batch_size - 1) // batch_size  # Ceiling division
+        # num_batches = (n_samples + batch_size - 1) // batch_size  # Ceiling division
+        num_batches = 2
 
         # Generate in batches and concatenate
         batches = []
@@ -899,7 +900,7 @@ def generate_tabdiff_synthetic_data(tabdiff_model, train_data, n_samples=None):
     else:
         # Regular generation for other platforms
         tabdiff_model.diffusion.eval()
-        synthetic_data = tabdiff_model.sample_synthetic(n_samples)
+        synthetic_data = tabdiff_model.sample_synthetic(n_samples, ema=True)
 
     print(f"Generated {len(synthetic_data)} synthetic samples from TABDIFF")
     return synthetic_data
@@ -940,98 +941,227 @@ def evaluate_tstr(synthetic_data, X_test, y_test, target_col='target'):
     if synthetic_data is None:
         return {'LR': None, 'MLP': None, 'RF': None, 'XGB': None, 'AVG': None}
 
-    try:
-        # Split synthetic data into features and target
-        if target_col in synthetic_data.columns:
-            syn_X = synthetic_data.drop(target_col, axis=1)
-            syn_y = synthetic_data[target_col]
-        else:
-            # If target column isn't found, assume last column is target
-            syn_X = synthetic_data.iloc[:, :-1]
-            syn_y = synthetic_data.iloc[:, -1]
+    # try:
+    # Split synthetic data into features and target
+    if target_col in synthetic_data.columns:
+        syn_X = synthetic_data.drop(target_col, axis=1)
+        syn_y = synthetic_data[target_col]
+    else:
+        # If target column isn't found, assume last column is target
+        syn_X = synthetic_data.iloc[:, :-1]
+        syn_y = synthetic_data.iloc[:, -1]
 
-        # Ensure column orders match exactly between synthetic and test data
-        print(f"Synthetic X columns: {syn_X.columns.tolist()}")
-        print(f"Test X columns: {X_test.columns.tolist()}")
+    # Convert period to underscore in column names
+    syn_X = syn_X.rename(columns={col: col.replace('.', '_') for col in syn_X.columns})
 
-        # Reorder synthetic columns to match test data if needed
-        if list(syn_X.columns) != list(X_test.columns):
-            print("Reordering synthetic data columns to match test data...")
+    # Ensure column orders match exactly between synthetic and test data
+    print(f"Synthetic X columns: {syn_X.columns.tolist()}")
+    print(f"Test X columns: {X_test.columns.tolist()}")
+
+    # Reorder synthetic columns to match test data if needed
+    if list(syn_X.columns) != list(X_test.columns):
+        print("Reordering synthetic data columns to match test data...")
+        try:
+            syn_X = syn_X[X_test.columns]
+        except KeyError as e:
+            print(f"Column mismatch between synthetic and test data: {e}")
+            print("Using available columns only...")
+            common_cols = list(set(syn_X.columns).intersection(set(X_test.columns)))
+            syn_X = syn_X[common_cols]
+            X_test = X_test[common_cols]
+
+    # Define classification models as used in the paper
+    models = {
+        'LR': LogisticRegression(max_iter=1000),
+        'MLP': MLPClassifier(max_iter=500, early_stopping=True),
+        'RF': RandomForestClassifier(n_estimators=100)
+    }
+
+    # Add XGBoost if available (with compatibility settings)
+    if XGBOOST_AVAILABLE:
+        try:
+            # Try different parameter combinations based on XGBoost version
             try:
-                syn_X = syn_X[X_test.columns]
-            except KeyError as e:
-                print(f"Column mismatch between synthetic and test data: {e}")
-                print("Using available columns only...")
-                common_cols = list(set(syn_X.columns).intersection(set(X_test.columns)))
-                syn_X = syn_X[common_cols]
-                X_test = X_test[common_cols]
+                # Newer XGBoost versions
+                models['XGB'] = xgb.XGBClassifier(
+                    n_estimators=100,
+                    learning_rate=0.1,
+                    enable_categorical=False,  # Avoid categorical feature warning
+                    use_label_encoder=False  # Compatibility for older versions
+                )
+            except TypeError:
+                # Older XGBoost versions
+                models['XGB'] = xgb.XGBClassifier(
+                    n_estimators=100,
+                    learning_rate=0.1
+                )
+        except Exception as e:
+            print(f"Could not initialize XGBoost classifier: {e}")
+            # Don't add XGB to models in case of error
 
-        # Define classification models as used in the paper
-        models = {
-            'LR': LogisticRegression(max_iter=1000),
-            'MLP': MLPClassifier(max_iter=500, early_stopping=True),
-            'RF': RandomForestClassifier(n_estimators=100)
-        }
+    results = {}
 
-        # Add XGBoost if available (with compatibility settings)
-        if XGBOOST_AVAILABLE:
-            try:
-                # Try different parameter combinations based on XGBoost version
-                try:
-                    # Newer XGBoost versions
-                    models['XGB'] = xgb.XGBClassifier(
-                        n_estimators=100,
-                        learning_rate=0.1,
-                        enable_categorical=False,  # Avoid categorical feature warning
-                        use_label_encoder=False  # Compatibility for older versions
-                    )
-                except TypeError:
-                    # Older XGBoost versions
-                    models['XGB'] = xgb.XGBClassifier(
-                        n_estimators=100,
-                        learning_rate=0.1
-                    )
-            except Exception as e:
-                print(f"Could not initialize XGBoost classifier: {e}")
-                # Don't add XGB to models in case of error
+    # Get feature categories for one-hot encoding
+    # categories = [np.unique(np.concatenate([syn_X[col].unique(), X_test[col].unique()])) for col in X_test.columns]
+    # categories = [
+    #     np.unique(np.concatenate([
+    #         syn_X[col].astype(str).unique(),
+    #         X_test[col].astype(str).unique()
+    #     ]))
+    #     for col in X_test.columns
+    # ]
 
-        results = {}
+    for name, model in models.items():
+        # try:
+        print(f"Training {name} on synthetic data...")
 
-        # Get feature categories for one-hot encoding
-        categories = [np.unique(np.concatenate([syn_X[col].unique(), X_test[col].unique()])) for col in X_test.columns]
+        # # Sort categories for numerical columns
+        # for i, col in enumerate(X_test.columns):
+        #     if pd.api.types.is_numeric_dtype(X_test[col]):
+        #         categories[i] = np.sort(categories[i])
 
-        for name, model in models.items():
-            try:
-                print(f"Training {name} on synthetic data...")
-                pipeline = Pipeline([
-                    ('encoder', OneHotEncoder(categories=categories, handle_unknown='ignore')),
-                    ('model', model)
-                ])
+        # # Convert categories properly with explicit sorting for numerical columns
+        # corrected_categories = []
+        # for i, col in enumerate(X_test.columns):
+        #     cat_values = np.concatenate([syn_X[col].unique(), X_test[col].unique()])
+        #
+        #     # Check if this is a numeric column
+        #     is_numeric = pd.api.types.is_numeric_dtype(X_test[col])
+        #     print(col, is_numeric)
+        #
+        #     if is_numeric:
+        #         # Convert to float and sort
+        #         numeric_cats = np.unique(cat_values.astype(float))
+        #         corrected_categories.append(np.sort(numeric_cats))
+        #     else:
+        #         # Keep as categorical
+        #         corrected_categories.append(np.unique(cat_values))
 
-                # Train on synthetic data
-                pipeline.fit(syn_X, syn_y)
+        # # Explicitly check if column contains non-numeric strings before conversion
+        # corrected_categories = []
+        # for i, col in enumerate(X_test.columns):
+        #     cat_values = np.concatenate([syn_X[col].unique(), X_test[col].unique()])
+        #
+        #     # Check if ALL values can be converted to float
+        #     try:
+        #         # Try converting to float - if it works for all values, it's numeric
+        #         _ = [float(x) for x in cat_values]
+        #         is_numeric = True
+        #     except (ValueError, TypeError):
+        #         # If ANY conversion fails, treat as categorical
+        #         is_numeric = False
+        #
+        #     if is_numeric:
+        #         # Convert to float and sort
+        #         numeric_cats = np.unique(np.array([float(x) for x in cat_values]))
+        #         corrected_categories.append(np.sort(numeric_cats))
+        #     else:
+        #         # Keep as categorical
+        #         corrected_categories.append(np.unique(cat_values))
+        #
+        #     print(f"Column '{col}' is {'numeric' if is_numeric else 'categorical'}")
 
-                # Test on real data
-                y_pred = pipeline.predict(X_test)
-                acc = accuracy_score(y_test, y_pred)
-                results[name] = acc
-                print(f"{name} TSTR accuracy: {acc:.4f}")
-            except Exception as e:
-                print(f"Error evaluating {name}: {e}")
-                results[name] = None
+        # Detect categorical columns by examining data types and values
+        corrected_categories = []
+        for i, col in enumerate(X_test.columns):
+            # Get unique values from both datasets
+            syn_vals = syn_X[col].unique().tolist()
+            test_vals = X_test[col].unique().tolist()
+            all_vals = syn_vals + test_vals
 
-        # Calculate average accuracy across all models (as done in the paper)
-        valid_accs = [acc for acc in results.values() if acc is not None]
-        if valid_accs:
-            results['AVG'] = sum(valid_accs) / len(valid_accs)
-            print(f"Average TSTR accuracy: {results['AVG']:.4f}")
-        else:
-            results['AVG'] = None
+            # Try to determine if this is categorical or numeric
+            is_categorical = False
 
-        return results
-    except Exception as e:
-        print(f"Error in TSTR evaluation: {e}")
-        return {'LR': None, 'MLP': None, 'RF': None, 'XGB': None, 'AVG': None}
+            # Check for non-numeric values
+            for val in all_vals:
+                # Skip NaN values in check
+                if pd.isna(val):
+                    continue
+                # If we find any string or non-numeric value, mark as categorical
+                if isinstance(val, str) and not val.strip().replace('.', '', 1).replace('-', '', 1).isdigit():
+                    is_categorical = True
+                    break
+                # Check other non-numeric types
+                if not isinstance(val, (int, float, np.integer, np.floating)):
+                    is_categorical = True
+                    break
+
+            print(f"Column '{col}' detected as {'categorical' if is_categorical else 'numeric'}")
+
+            # Process based on detected type
+            if is_categorical:
+                # Convert all to strings for categorical column
+                all_vals_str = [str(x) for x in all_vals if not pd.isna(x)]
+                unique_vals = list(set(all_vals_str))
+                corrected_categories.append(np.array(unique_vals))
+            else:
+                # Process as numeric column
+                numeric_vals = []
+                for val in all_vals:
+                    if pd.isna(val):
+                        continue
+                    try:
+                        numeric_vals.append(float(val))
+                    except (ValueError, TypeError):
+                        # If any conversion fails, we need to treat as strings
+                        is_categorical = True
+                        break
+
+                if is_categorical:
+                    # Handle the fallback case
+                    print(f"Fallback: Column '{col}' contains mixed types, treating as categorical")
+                    all_vals_str = [str(x) for x in all_vals if not pd.isna(x)]
+                    unique_vals = list(set(all_vals_str))
+                    corrected_categories.append(np.array(unique_vals))
+                else:
+                    # All numeric values
+                    unique_vals = sorted(set(numeric_vals))
+                    corrected_categories.append(np.array(unique_vals))
+
+        # Let scikit-learn handle categories automatically
+        from sklearn.compose import ColumnTransformer
+
+        # Create a more robust pipeline
+        pipeline = Pipeline([
+            ('preprocessor', ColumnTransformer(
+                transformers=[
+                    ('onehotencoder', OneHotEncoder(handle_unknown='ignore', sparse_output=False),
+                     list(range(len(X_test.columns))))
+                ],
+                remainder='passthrough'
+            )),
+            ('model', model)
+        ])
+
+        # pipeline = Pipeline([
+        #     ('encoder', OneHotEncoder(categories=corrected_categories, handle_unknown='ignore', sparse_output=False)),
+        #     ('model', model)
+        # ])
+
+        # Train on synthetic data
+        pipeline.fit(syn_X, syn_y)
+
+        # Test on real data
+        y_pred = pipeline.predict(X_test)
+        acc = accuracy_score(y_test, y_pred)
+        results[name] = acc
+        print(f"{name} TSTR accuracy: {acc:.4f}")
+        # except Exception as e:
+        #     print(f"Error evaluating {name}: {e}")
+        #     results[name] = None
+
+    # Calculate average accuracy across all models (as done in the paper)
+    valid_accs = [acc for acc in results.values() if acc is not None]
+    if valid_accs:
+        results['AVG'] = sum(valid_accs) / len(valid_accs)
+        print(f"Average TSTR accuracy: {results['AVG']:.4f}")
+    else:
+        results['AVG'] = None
+
+    return results
+    # except Exception as e:
+    #     print(f"Error in TSTR evaluation: {e}")
+    #     return {'LR': None, 'MLP': None, 'RF': None, 'XGB': None, 'AVG': None}
 
 
 def get_gaussianNB_bic_score(model, data):
@@ -1767,7 +1897,7 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
             #                                          batch_size=batch_size)
 
             import json
-            info_path = 'data/Info/Rice.json'
+            info_path = 'data/Info/adult.json'
             with open(info_path, 'r') as f:
                 info = json.load(f)
 
@@ -1792,7 +1922,7 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
 
             if tabdiff_model:
                 # Generate synthetic data
-                tabdiff_synthetic = generate_tabdiff_synthetic_data(tabdiff_model, train_data, n_samples=n_samples)
+                tabdiff_synthetic = generate_tabdiff_synthetic_data(tabdiff_model, train_data, n_samples=10)
 
                 if tabdiff_synthetic is not None:
                     # Store in cache
@@ -1842,6 +1972,7 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
 
                 # Get synthetic data and BIC score
                 synthetic_data = model_cache['data']
+                print(model_cache)
 
                 if model_name == 'rlig' and 'model' in model_cache:
                     # Use RLiG's built-in evaluate method for consistency
@@ -2072,7 +2203,8 @@ def parse_args():
         "--uci_ids",
         type=int,
         nargs="+",
-        default=[545, 101, 158, 26, 27, 2, 22, 59, 159, 76, 864, 19, 863],  # Default: Rice and TicTacToe
+        default=[2],
+        # default=[545, 101, 158, 26, 27, 2, 22, 59, 159, 76, 864, 19, 863],  # Default: Rice and TicTacToe
         help="List of UCI dataset IDs to use"
     )
 
@@ -2231,6 +2363,7 @@ if __name__ == "__main__":
         args.ctgan_epochs = 10
         print(f"Note: Using reduced CTGAN epochs ({args.ctgan_epochs}) for faster training")
 
+    print(f"Loading {datasets}")
     # Run the TSTR comparison with specified models and parameters
     results = compare_models_tstr(
         datasets,
