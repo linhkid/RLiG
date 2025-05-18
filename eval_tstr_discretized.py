@@ -911,11 +911,12 @@ def train_great(X_train, y_train, batch_size=1, epochs=1):
         
         # Configure GReaT with appropriate parameters and suppress warnings
         great_model = GReaT(
-            llm='distilgpt2', 
-            batch_size=2, 
-            epochs=10, 
+            llm='distilgpt2',
+            batch_size=32,
+            epochs=2,
             fp16=True,
-            gradient_accumulation_steps=8,
+            gradient_accumulation_steps=16,
+            dataloader_num_workers=8,
             metric_for_best_model="accuracy"
         )
         
