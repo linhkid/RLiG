@@ -1,7 +1,7 @@
 {
-    "name": "chess_king_rook_vs_king_pawn",
+    "name": "chess",
     "task_type": "binclass",
-    "header": null,
+    "header": "infer",
     "column_names": [
         "bkblk",
         "bknwy",

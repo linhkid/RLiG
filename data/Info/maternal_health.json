@@ -1,6 +1,6 @@
 {
   "name": "maternal_health",
-  "task_type": "binclass",
+  "task_type": "multiclass",
   "header": "infer",
   "column_names": [
     "Age",

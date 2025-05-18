@@ -7,8 +7,8 @@
     "cat_col_idx": [1,2,3,5,6,7,8,9,10],
     "target_col_idx": [23],
 
-    "file_type": "xls",
-    "data_path": "data/default/default of credit card clients.xls",
+    "file_type": "csv",
+    "data_path": "data/default/train.csv",
     "val_path": null,
-    "test_path": null
+    "test_path": "data/default/test.csv"
 }

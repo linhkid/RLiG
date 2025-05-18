@@ -1,7 +1,7 @@
 {
-    "name": "chess_king_rook_vs_king_pawn",
+    "name": "chess",
     "task_type": "binclass",
-    "header": null,
+    "header": "infer",
     "column_names": [
         "bkblk",
         "bknwy",
@@ -92,9 +92,8 @@
         "0": {},
         "type": "categorical",
         "categorizes": [
-            "0",
-            "target",
-            "1"
+            0,
+            1
         ],
         "1": {},
         "2": {},
@@ -132,8 +131,8 @@
         "34": {},
         "35": {}
     },
-    "train_num": 2557,
-    "test_num": 641,
+    "train_num": 2556,
+    "test_num": 640,
     "val_num": 0,
     "idx_mapping": {
         "0": 0,

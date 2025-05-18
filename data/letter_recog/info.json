@@ -1,6 +1,6 @@
 {
     "name": "letter_recog",
-    "task_type": "binclass",
+    "task_type": "multiclass",
     "header": "infer",
     "column_names": [
         "lettr",

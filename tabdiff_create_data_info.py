@@ -83,7 +83,11 @@ def load_dataset(name, dataset_info):
                 X = df.iloc[:, :-1]
                 # Change the name of columns to avoid "-" to parsing error
                 X.columns = [col.replace('-', '_') for col in X.columns]
-                y = df.iloc[:, -1:]
+                if name == "letter_recog":
+                    # or y = df.iloc[:, [0]]
+                    y = df[['lettr']]
+                else:
+                    y = df.iloc[:, -1:]
                 # Change the name of y dataframe to avoid duplicate "class" keyword
                 y.columns = ["target"]
                 return X, y
@@ -132,7 +136,136 @@ def label_encode_cols(X, cols):
     return X_encoded, encoders
 
 
-def preprocess_data(X, y, discretize=True, model_name=None, cv_fold=None, n_folds=None):
+# def preprocess_data(X, y, discretize=True, model_name=None, cv_fold=None, n_folds=None):
+#     """Preprocess data: optionally discretize continuous variables and encode categoricals
+#
+#     This version can selectively apply discretization using quantile binning with 7 bins,
+#     which better preserves the distribution of the original data. This is especially useful
+#     for certain models, while others may perform better with non-discretized data.
+#
+#     Parameters:
+#     -----------
+#     X : DataFrame
+#         Features to preprocess
+#     y : DataFrame or Series
+#         Target variable
+#     discretize : bool, default=True
+#         Whether to apply discretization to continuous features
+#     model_name : str, optional
+#         Name of the model being trained, used for model-specific preprocessing decisions
+#     cv_fold : int, optional
+#         Current fold number when doing k-fold cross-validation (0-indexed)
+#     n_folds : int, optional
+#         Total number of folds when doing k-fold cross-validation
+#     """
+#     # First, handle missing values
+#     # Check if there are any missing values
+#     if X.isnull().any().any():
+#         print("Handling missing values in the dataset...")
+#
+#         # For categorical columns, fill with the most frequent value
+#         for col in X.select_dtypes(include=['object']).columns:
+#             X[col] = X[col].fillna(X[col].mode()[0])
+#
+#         # For numeric columns, fill with the median
+#         for col in X.select_dtypes(include=['number']).columns:
+#             X[col] = X[col].fillna(X[col].median())
+#
+#         print("Missing values have been imputed")
+#
+#     # Identify column types after imputation
+#     continuous_cols = X.select_dtypes(include=['number']).columns
+#     categorical_cols = X.select_dtypes(include=['object']).columns
+#     print("Continuous columns: ", continuous_cols)
+#     print("Categorical columns: ", categorical_cols)
+#
+#     # Apply discretization based on the flag
+#     apply_discretization = discretize
+#
+#     # Log the discretization status for the current model
+#     if model_name:
+#         if apply_discretization:
+#             print(f"Note: Using discretized features for {model_name}")
+#         else:
+#             print(f"Note: Using non-discretized features for {model_name}")
+#
+#     # Create transformation pipeline with optional discretization
+#     transformers = []
+#     if len(continuous_cols) > 0:
+#         if apply_discretization:
+#             # Add discretization step to the pipeline
+#             continuous_transformer = Pipeline(steps=[
+#                 ('scaler', StandardScaler()),
+#                 ('discretizer', KBinsDiscretizer(n_bins=5, encode='ordinal', strategy='uniform'))
+#             ])
+#             print("Using discretization with uniform binning (5 bins)")
+#         else:
+#             # Only standardize without discretization
+#             continuous_transformer = Pipeline(steps=[
+#                 ('scaler', StandardScaler())
+#             ])
+#             print("Using standardization without discretization")
+#
+#         transformers.append(('num', continuous_transformer, continuous_cols))
+#
+#     # Handle categorical columns
+#     if len(categorical_cols) > 0:
+#         X, encoders = label_encode_cols(X, categorical_cols)
+#
+#     # Apply transformations
+#     preprocessor = ColumnTransformer(transformers=transformers, remainder='passthrough')
+#     X_transformed = preprocessor.fit_transform(X)
+#     X_transformed_df = pd.DataFrame(X_transformed, columns=continuous_cols.tolist() + categorical_cols.tolist())
+#
+#     # Handle target variable
+#     if y.isnull().any().any():
+#         print("Handling missing values in target variable...")
+#         if y.dtypes[0] == 'object':
+#             y = y.fillna(y.mode()[0])
+#         else:
+#             y = y.fillna(y.median())
+#
+#     if y.dtypes[0] == 'object':
+#         label_encoder = LabelEncoder()
+#         y_transformed = pd.DataFrame(label_encoder.fit_transform(y.values.ravel()), columns=y.columns)
+#     else:
+#         y_transformed = y
+#
+#     # Split data based on whether we're using cross-validation or traditional train-test split
+#     if cv_fold is not None and n_folds is not None:
+#         from sklearn.model_selection import KFold
+#         print(f"Using {n_folds}-fold cross-validation (fold {cv_fold + 1}/{n_folds})")
+#
+#         # Create fold indices
+#         kf = KFold(n_splits=n_folds, shuffle=True, random_state=42)
+#
+#         # Convert to arrays for indexing
+#         X_array = X_transformed_df.values
+#         y_array = y_transformed.values
+#
+#         # Get the train/test indices for this fold
+#         train_indices = []
+#         test_indices = []
+#
+#         for i, (train_idx, test_idx) in enumerate(kf.split(X_array)):
+#             if i == cv_fold:
+#                 train_indices = train_idx
+#                 test_indices = test_idx
+#                 break
+#
+#         # Split the data using the indices
+#         X_train = pd.DataFrame(X_array[train_indices], columns=X_transformed_df.columns)
+#         X_test = pd.DataFrame(X_array[test_indices], columns=X_transformed_df.columns)
+#         y_train = pd.DataFrame(y_array[train_indices], columns=y_transformed.columns)
+#         y_test = pd.DataFrame(y_array[test_indices], columns=y_transformed.columns)
+#
+#         return X_train, X_test, y_train, y_test
+#     else:
+#         # Traditional split
+#         return train_test_split(X_transformed_df, y_transformed, test_size=0.2, random_state=42, stratify=y)
+
+
+def preprocess_data(X, y, name, discretize=True, model_name=None, cv_fold=None, n_folds=None):
     """Preprocess data: optionally discretize continuous variables and encode categoricals
 
     This version can selectively apply discretization using quantile binning with 7 bins,
@@ -145,6 +278,7 @@ def preprocess_data(X, y, discretize=True, model_name=None, cv_fold=None, n_fold
         Features to preprocess
     y : DataFrame or Series
         Target variable
+    name: Name of dataset
     discretize : bool, default=True
         Whether to apply discretization to continuous features
     model_name : str, optional
@@ -213,6 +347,10 @@ def preprocess_data(X, y, discretize=True, model_name=None, cv_fold=None, n_fold
     X_transformed = preprocessor.fit_transform(X)
     X_transformed_df = pd.DataFrame(X_transformed, columns=continuous_cols.tolist() + categorical_cols.tolist())
 
+    # Clean the target values for 'adult' dataset
+    if name == 'adult':
+        y = y.transform(lambda col: col.astype(str).str.replace('.', '', regex=False))
+
     # Handle target variable
     if y.isnull().any().any():
         print("Handling missing values in target variable...")
@@ -264,10 +402,11 @@ def preprocess_data(X, y, discretize=True, model_name=None, cv_fold=None, n_fold
 def create_data_info(dataname, dataset_info, discretize):
     X, y = load_dataset(dataname, dataset_info)
     print(X, y)
+    print(y.value_counts())
 
     # Get data and preprocess based on discretization flag for TabDiff
     X_train_tabdiff, X_test_tabdiff, y_train_tabdiff, y_test_tabdiff = (
-        preprocess_data(X, y, discretize=discretize, model_name='tabdiff')
+        preprocess_data(X, y, name=dataname, discretize=discretize, model_name='tabdiff')
     )
     print("Shape of X_train_tabdiff: ", X_train_tabdiff.shape)
     print("Shape of X_test_tabdiff: ", X_test_tabdiff.shape)
