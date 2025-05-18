@@ -473,7 +473,7 @@ def train_ctgan(X_train, discrete_columns=None, epochs=100, batch_size=500):
         # Large: >= 50,000 rows
         
         # For large datasets, use stratified sampling
-        if len(X_train) >= 50000:  # Only sub-sample for large datasets per paper definition
+        if len(X_train) >= 20000:  # Only sub-sample for large datasets per paper definition
             print(f"Large dataset detected ({len(X_train)} rows). Using stratified sampling for CTGAN training.")
             
             # Get target column if it exists in the dataframe
@@ -493,7 +493,7 @@ def train_ctgan(X_train, discrete_columns=None, epochs=100, batch_size=500):
                 y = X_train[target_col]
                 
                 # For large datasets, take 30% or 25,000 samples, whichever is larger
-                sample_size = max(25000, int(0.3 * len(X_train)))
+                sample_size = max(20000, int(0.3 * len(X_train)))
                 _, X_sampled, _, y_sampled = train_test_split(
                     X, y, 
                     test_size=min(sample_size / len(X_train), 0.5),  # Take at most 50% of data
@@ -506,7 +506,7 @@ def train_ctgan(X_train, discrete_columns=None, epochs=100, batch_size=500):
                 print(f"Using {len(X_train)} stratified samples for CTGAN training (as per paper's methodology).")
             else:
                 # If no target column, use simple random sampling
-                sample_size = max(25000, int(0.3 * len(X_train)))
+                sample_size = max(20000, int(0.3 * len(X_train)))
                 X_train = X_train.sample(min(sample_size, len(X_train)), random_state=42)
                 print(f"Using {len(X_train)} random samples for CTGAN training (as per paper's methodology).")
         
@@ -557,7 +557,7 @@ def train_ctabgan(X_train, y_train, categorical_columns=None, epochs=50):
         # Large: >= 50,000 rows
         
         # For large datasets, use stratified sampling
-        if len(X_train) >= 50000:  # Only subsample for large datasets per paper definition
+        if len(X_train) >= 20000:  # Only subsample for large datasets per paper definition
             print(f"Large dataset detected ({len(X_train)} rows). Using stratified sampling for CTABGAN training.")
             
             # Standard practice for these models is to use a large enough sample
@@ -915,8 +915,8 @@ def train_great(X_train, y_train, batch_size=1, epochs=1):
             batch_size=32,
             epochs=2,
             fp16=True,
-            gradient_accumulation_steps=16,
-            dataloader_num_workers=8,
+            #gradient_accumulation_steps=8,
+            dataloader_num_workers=4,
             metric_for_best_model="accuracy"
         )
         
@@ -1164,7 +1164,7 @@ def save_synthetic_data(synthetic_data, model_name, dataset_name, directory="tra
     
     # For small and medium datasets, save all synthetic data
     # For large datasets, save a meaningful sample
-    if len(synthetic_data) < 50000:
+    if len(synthetic_data) < 20000:
         # Small or medium dataset - save everything
         synthetic_data.to_csv(file_path, index=False)
         print(f"Saved complete {model_name.upper()} synthetic dataset ({len(synthetic_data)} samples) to {file_path}")
@@ -1184,13 +1184,13 @@ def save_synthetic_data(synthetic_data, model_name, dataset_name, directory="tra
             # Use stratified sampling
             _, sampled_data = train_test_split(
                 synthetic_data, 
-                test_size=min(25000/len(synthetic_data), 0.5),  # Take at most 50% or 25,000
+                test_size=min(20000/len(synthetic_data), 0.5),  # Take at most 50% or 20,000
                 stratify=synthetic_data[target_col],
                 random_state=42
             )
         else:
             # Simple random sample if no target column or only one class
-            sample_size = min(25000, len(synthetic_data))
+            sample_size = min(20000, len(synthetic_data))
             sampled_data = synthetic_data.sample(sample_size, random_state=42)
             
         sampled_data.to_csv(file_path, index=False)
