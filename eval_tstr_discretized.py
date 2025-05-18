@@ -2942,12 +2942,12 @@ def parse_args():
     Credit: 27
     Adult: 2
     Chess: 22
-    letter_rocog: 59
+    letter_recog: 59
     Magic: 159
     Nursery: 76
-    Room Occupancy: 864
+    Room_Occupancy: 864
     Car: 19
-    Maternal Health: 863
+    Maternal_Health: 863
     Loan & Credit: from local directory
     """
     
@@ -2957,8 +2957,8 @@ def parse_args():
         type=str, 
         nargs="+", 
         default=['Rice', 'TicTacToe', 'PokerHand', 'Connect-4', 'Credit',
-                 'Adult', 'Chess', 'letter_rocog', 'Magic', 'Nursery', 'Room Occupancy',
-                 'Car', 'Maternal Health', 'Loan'],
+                 'Adult', 'Chess', 'letter_recog', 'Magic', 'Nursery', 'Room_Occupancy',
+                 'Car', 'Maternal_Health', 'Loan'],
         help="List of dataset names to evaluate"
     )
     

@@ -110,7 +110,7 @@ run_dataset "Chess" "--datasets Chess" "chess" "$DISCRETIZE"
 run_dataset "TicTacToe" "--datasets TicTacToe" "tictactoe" "$DISCRETIZE"
 
 # 5. Run Letter Recognition dataset
-run_dataset "letter_rocog" "--datasets letter_rocog" "letter_recognition" "$DISCRETIZE"
+run_dataset "letter_recog" "--datasets letter_recog" "letter_recognition" "$DISCRETIZE"
 
 # 6. Run Magic dataset
 run_dataset "Magic" "--datasets Magic" "magic" "$DISCRETIZE"
@@ -119,10 +119,10 @@ run_dataset "Magic" "--datasets Magic" "magic" "$DISCRETIZE"
 run_dataset "Nursery" "--datasets Nursery" "nursery" "$DISCRETIZE"
 
 # 8. Run Room Occupancy dataset 
-run_dataset "Room Occupancy" "--datasets 'Room Occupancy'" "room_occupancy" "$DISCRETIZE"
+run_dataset "Room_Occupancy" "--datasets 'Room_Occupancy'" "room_occupancy" "$DISCRETIZE"
 
 # 9. Run Maternal Health and Loan datasets
-run_dataset "Maternal Health" "--datasets 'Maternal Health'" "maternal_health" "$DISCRETIZE"
+run_dataset "Maternal_Health" "--datasets 'Maternal_Health'" "maternal_health" "$DISCRETIZE"
 
 run_dataset "Loan" "--datasets Loan" "loan" "$DISCRETIZE"
 
