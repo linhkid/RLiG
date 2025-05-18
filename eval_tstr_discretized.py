@@ -140,7 +140,7 @@ try:
     dist_sampl_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'distsampl')
     if dist_sampl_path not in sys.path:
         sys.path.append(dist_sampl_path)
-
+    
     from distsampl.dist_sampling import DistSampling
 
     DIST_SAMPL_AVAILABLE = True
@@ -176,12 +176,12 @@ def read_arff_file(file_path):
     """Read an ARFF file and return a pandas DataFrame"""
     data, meta = loadarff(file_path)
     df = pd.DataFrame(data)
-
+    
     # Convert byte strings to regular strings
     for col in df.columns:
         if df[col].dtype == object:  # Object type typically indicates byte strings from ARFF
             df[col] = df[col].str.decode('utf-8')
-
+    
     return df, meta
 
 
@@ -223,33 +223,33 @@ def preprocess_data(X, y, name, discretize=True, model_name=None, cv_fold=None, 
     # Check if there are any missing values
     if X.isnull().any().any():
         print("Handling missing values in the dataset...")
-
+        
         # For categorical columns, fill with the most frequent value
         for col in X.select_dtypes(include=['object']).columns:
             X[col] = X[col].fillna(X[col].mode()[0])
-
+            
         # For numeric columns, fill with the median
         for col in X.select_dtypes(include=['number']).columns:
             X[col] = X[col].fillna(X[col].median())
-
+            
         print("Missing values have been imputed")
-
+    
     # Identify column types after imputation
     continuous_cols = X.select_dtypes(include=['number']).columns
     categorical_cols = X.select_dtypes(include=['object']).columns
     print("Continuous columns: ", continuous_cols)
     print("Categorical columns: ", categorical_cols)
-
+    
     # Apply discretization based on the flag
     apply_discretization = discretize
-
+    
     # Log the discretization status for the current model
     if model_name:
         if apply_discretization:
             print(f"Note: Using discretized features for {model_name}")
         else:
             print(f"Note: Using non-discretized features for {model_name}")
-
+    
     # Create transformation pipeline with optional discretization
     transformers = []
     if len(continuous_cols) > 0:
@@ -266,9 +266,9 @@ def preprocess_data(X, y, name, discretize=True, model_name=None, cv_fold=None, 
                 ('scaler', StandardScaler())
             ])
             print("Using standardization without discretization")
-
+            
         transformers.append(('num', continuous_transformer, continuous_cols))
-
+    
     # Handle categorical columns
     if len(categorical_cols) > 0:
         X, encoders = label_encode_cols(X, categorical_cols)
@@ -289,41 +289,41 @@ def preprocess_data(X, y, name, discretize=True, model_name=None, cv_fold=None, 
             y = y.fillna(y.mode()[0])
         else:
             y = y.fillna(y.median())
-
+    
     if y.dtypes[0] == 'object':
         label_encoder = LabelEncoder()
         y_transformed = pd.DataFrame(label_encoder.fit_transform(y.values.ravel()), columns=y.columns)
     else:
         y_transformed = y
-
+    
     # Split data based on whether we're using cross-validation or traditional train-test split
     if cv_fold is not None and n_folds is not None:
         from sklearn.model_selection import KFold
-        print(f"Using {n_folds}-fold cross-validation (fold {cv_fold + 1}/{n_folds})")
-
+        print(f"Using {n_folds}-fold cross-validation (fold {cv_fold+1}/{n_folds})")
+        
         # Create fold indices
         kf = KFold(n_splits=n_folds, shuffle=True, random_state=42)
-
+        
         # Convert to arrays for indexing
         X_array = X_transformed_df.values
         y_array = y_transformed.values
-
+        
         # Get the train/test indices for this fold
         train_indices = []
         test_indices = []
-
+        
         for i, (train_idx, test_idx) in enumerate(kf.split(X_array)):
             if i == cv_fold:
                 train_indices = train_idx
                 test_indices = test_idx
                 break
-
+        
         # Split the data using the indices
         X_train = pd.DataFrame(X_array[train_indices], columns=X_transformed_df.columns)
         X_test = pd.DataFrame(X_array[test_indices], columns=X_transformed_df.columns)
         y_train = pd.DataFrame(y_array[train_indices], columns=y_transformed.columns)
         y_test = pd.DataFrame(y_array[test_indices], columns=y_transformed.columns)
-
+        
         return X_train, X_test, y_train, y_test
     else:
         # Traditional split
@@ -341,7 +341,7 @@ def load_dataset(name, dataset_info):
             y = data.data.targets
             # Change the name of y dataframe to avoid duplicate "class" keyword
             y.columns = ["target"]
-
+            
             # Special handling for Credit dataset which is known to have NaN values
             if name == "Credit":
                 print(f"Special handling for {name} dataset")
@@ -349,21 +349,21 @@ def load_dataset(name, dataset_info):
                 missing_X = X.isnull().sum().sum()
                 missing_y = y.isnull().sum().sum()
                 print(f"Missing values detected: {missing_X} in features, {missing_y} in target")
-
+                
                 # Drop rows with NaN values if there are not too many
                 if missing_X + missing_y > 0 and missing_X + missing_y < len(X) * 0.1:  # If less than 10% are missing
                     print(f"Dropping {missing_X + missing_y} rows with missing values")
                     # Combine X and y for dropping rows with any NaN
                     combined = pd.concat([X, y], axis=1)
                     combined_clean = combined.dropna()
-
+                    
                     # Split back to X and y
                     X = combined_clean.iloc[:, :-1]
                     y = combined_clean.iloc[:, -1:].copy()
                     y.columns = ["target"]
-
+                    
                     print(f"After dropping rows: X shape = {X.shape}, y shape = {y.shape}")
-
+            
             return X, y
         except Exception as e:
             print(f"Error loading UCI dataset {name} (id={dataset_info}): {e}")
@@ -372,7 +372,7 @@ def load_dataset(name, dataset_info):
         try:
             if dataset_info.endswith(".csv"):
                 df = pd.read_csv(dataset_info)
-
+                
                 # Check for NaN values
                 if df.isnull().any().any():
                     print(f"Dataset {name} has missing values. Handling...")
@@ -385,7 +385,7 @@ def load_dataset(name, dataset_info):
                             print(f"Dropping {missing_count} rows with missing values")
                             df = df.dropna()
                         # Otherwise, we'll use imputation in the preprocess_data function
-
+                
                 X = df.iloc[:, :-1]
                 # Change the name of columns to avoid "-" to parsing error
                 X.columns = [col.replace('-', '_') for col in X.columns]
@@ -401,7 +401,7 @@ def load_dataset(name, dataset_info):
             else:
                 # Read arff file
                 df, meta = read_arff_file(dataset_info)
-
+                
                 # Check for NaN values
                 if df.isnull().any().any():
                     print(f"ARFF file {name} has missing values. Handling...")
@@ -411,7 +411,7 @@ def load_dataset(name, dataset_info):
                         print(f"Dropping {missing_count} rows with missing values")
                         df = df.dropna()
                     # Otherwise, we'll use imputation in the preprocess_data function
-
+                
                 if 'class' in df.columns:
                     # Encode categorical variables
                     X = df.drop('class', axis=1)
@@ -438,12 +438,12 @@ def train_bn(model, data):
     """Train a Bayesian Network model"""
     if not PGMPY_AVAILABLE:
         return None
-
+        
     bn = DiscreteBayesianNetwork()
     bn.add_nodes_from(model.nodes())
     bn.add_edges_from(model.edges())
     print("Bayesian Network structure:", bn)
-
+    
     # Fit model using Maximum Likelihood Estimation
     try:
         bn.fit(data, estimator=MaximumLikelihoodEstimator)
@@ -468,13 +468,13 @@ def train_ctgan(X_train, discrete_columns=None, epochs=100, batch_size=500):
     """Train a CTGAN model with M1/M2 Mac compatibility fixes"""
     if not CTGAN_AVAILABLE:
         return None
-
+        
     try:
         import os
         # Set environment variables to limit TensorFlow memory usage
         os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
         os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Suppress TF logs
-
+        
         # For Apple Silicon compatibility
         if hasattr(os, 'uname') and os.uname().machine == 'arm64':
             print("Apple Silicon detected - using compatibility settings for CTGAN")
@@ -482,77 +482,77 @@ def train_ctgan(X_train, discrete_columns=None, epochs=100, batch_size=500):
             batch_size = min(batch_size, 200)
             # Use fewer epochs by default on M1/M2
             epochs = min(epochs, 20)
-
+            
         # Convert X_train to DataFrame if it's not already
         if not isinstance(X_train, pd.DataFrame):
             X_train = pd.DataFrame(X_train)
+        
 
         # Small: =< 15,000 rows
         # Medium: 20,000 to 50,000 rows
         # Large: >= 50,000 rows
-
+        
         # For large datasets, use stratified sampling
-        if len(X_train) >= 50000:  # Only sub-sample for large datasets per paper definition
+        if len(X_train) >= 20000:  # Only sub-sample for large datasets per paper definition
             print(f"Large dataset detected ({len(X_train)} rows). Using stratified sampling for CTGAN training.")
-
+            
             # Get target column if it exists in the dataframe
             target_col = None
             for col in X_train.columns:
                 if col.lower() in ['target', 'label', 'class', 'y']:
                     target_col = col
                     break
-
+            
             # If we have a target column, use stratified sampling
             if target_col:
                 # Use sklearn's stratified sampling
                 from sklearn.model_selection import train_test_split
-
+                
                 # Get features and target
                 X = X_train.drop(columns=[target_col])
                 y = X_train[target_col]
-
+                
                 # For large datasets, take 30% or 25,000 samples, whichever is larger
-                sample_size = max(25000, int(0.3 * len(X_train)))
+                sample_size = max(20000, int(0.3 * len(X_train)))
                 _, X_sampled, _, y_sampled = train_test_split(
-                    X, y,
+                    X, y, 
                     test_size=min(sample_size / len(X_train), 0.5),  # Take at most 50% of data
                     stratify=y,
                     random_state=42
                 )
-
+                
                 # Recombine features and target
                 X_train = pd.concat([X_sampled, y_sampled], axis=1)
                 print(f"Using {len(X_train)} stratified samples for CTGAN training (as per paper's methodology).")
             else:
                 # If no target column, use simple random sampling
-                sample_size = max(25000, int(0.3 * len(X_train)))
+                sample_size = max(20000, int(0.3 * len(X_train)))
                 X_train = X_train.sample(min(sample_size, len(X_train)), random_state=42)
                 print(f"Using {len(X_train)} random samples for CTGAN training (as per paper's methodology).")
-
+        
         # Identify categorical columns if not provided
         if discrete_columns is None:
             discrete_columns = []
             for col in X_train.columns:
                 if X_train[col].dtype == 'object' or len(np.unique(X_train[col])) < 10:
                     discrete_columns.append(col)
-
+        
         # Initialize CTGAN model with conservative settings
         ctgan_model = CTGAN(
             epochs=epochs,
             batch_size=batch_size,
             verbose=True
         )
-
+        
         print(f"Training CTGAN with {epochs} epochs, batch_size={batch_size}, categorical columns: {discrete_columns}")
         print("This may take a while. To skip CTGAN, use --models ganblr ganblr++ nb rlig")
-
+        
         # Train with reduced data
         ctgan_model.fit(X_train, discrete_columns)
         return ctgan_model
     except Exception as e:
         print(f"Error training CTGAN model: {e}")
         return None
-
 
 def train_ctabgan(X_train, y_train, categorical_columns=None, epochs=50):
     """Train a CTABGAN model
@@ -570,46 +570,46 @@ def train_ctabgan(X_train, y_train, categorical_columns=None, epochs=50):
     """
     if not CTABGAN_AVAILABLE:
         return None
-
+        
     try:
         # Small: < 15,000 rows
         # Medium: 20,000 to 50,000 rows
         # Large: >= 50,000 rows
-
+        
         # For large datasets, use stratified sampling
-        if len(X_train) >= 50000:  # Only subsample for large datasets per paper definition
+        if len(X_train) >= 20000:  # Only subsample for large datasets per paper definition
             print(f"Large dataset detected ({len(X_train)} rows). Using stratified sampling for CTABGAN training.")
-
+            
             # Standard practice for these models is to use a large enough sample
             # that represents the data distribution well
-
+            
             # Check class distribution
             if isinstance(y_train, pd.DataFrame):
                 y_values = y_train.iloc[:, 0]
             else:
                 y_values = y_train
-
+                
             class_counts = y_values.value_counts()
             min_class_count = class_counts.min()
-
+            
             # Use sklearn's stratified sampling
             from sklearn.model_selection import train_test_split
-
+            
             # Calculate appropriate sample size (20% of data or at least 10,000 samples)
             sample_size = max(10000, int(0.2 * len(X_train)))
-
+            
             # Ensure we have at least 5 samples from each class
             if min_class_count < 5:
                 print(f"Warning: Minimum class count is very low ({min_class_count}). Using special sampling strategy.")
-
+                
                 try:
                     # Keep all instances of rare classes and sample from common classes
                     rare_classes = class_counts[class_counts < 5].index.tolist()
-
+                    
                     # If there are too many rare classes, ensure at least 2 samples per class
                     if len(rare_classes) > 50:  # More than 50 rare classes is unusual
                         indices = []
-
+                        
                         # First, ensure at least 2 samples from each class
                         for class_val in class_counts.index:
                             class_indices = y_values[y_values == class_val].index.tolist()
@@ -621,108 +621,108 @@ def train_ctabgan(X_train, y_train, categorical_columns=None, epochs=50):
                                 n_samples = max(2, min(5, len(class_indices)))  # Take 2-5 samples from each class
                                 sample_indices = np.random.choice(class_indices, size=n_samples, replace=False)
                                 indices.extend(sample_indices)
-
+                        
                         # Fill the rest with stratified samples up to desired sample size
                         if len(indices) < sample_size:
                             # Create mask for indices already selected
                             selected_mask = np.zeros(len(X_train), dtype=bool)
                             selected_mask[indices] = True
-
+                            
                             # Get remaining data
                             X_remaining = X_train[~selected_mask]
                             y_remaining = y_values[~selected_mask]
-
+                            
                             if len(y_remaining) > 0:
                                 # Calculate how many more samples we need
                                 remaining_size = min(sample_size - len(indices), len(X_remaining))
-
+                                
                                 if remaining_size > 0:
                                     # Use stratified sampling for the rest
                                     _, X_extra, _, y_extra = train_test_split(
                                         X_remaining, y_remaining,
-                                        test_size=remaining_size / len(X_remaining),
+                                        test_size=remaining_size/len(X_remaining),
                                         stratify=y_remaining if len(np.unique(y_remaining)) > 1 else None,
                                         random_state=42
                                     )
-
+                                    
                                     # Combine with our selected indices
                                     extra_indices = X_extra.index.tolist()
                                     indices.extend(extra_indices)
                     else:
                         # Get indices of all rare classes
                         rare_indices = y_values[y_values.isin(rare_classes)].index.tolist()
-
+                        
                         # Get indices of common classes
                         common_classes = [c for c in class_counts.index if c not in rare_classes]
                         common_indices = y_values[y_values.isin(common_classes)].index.tolist()
-
+                        
                         # Determine how many samples to take from common classes
                         remaining_slots = sample_size - len(rare_indices)
-
+                        
                         if remaining_slots > 0 and common_indices:
                             # Use stratified sampling for common classes
                             common_y = y_values.loc[common_indices]
                             _, sampled_common_indices = train_test_split(
                                 common_indices,
-                                test_size=min(remaining_slots / len(common_indices), 1.0),
+                                test_size=min(remaining_slots/len(common_indices), 1.0),
                                 stratify=common_y if len(np.unique(common_y)) > 1 else None,
                                 random_state=42
                             )
-
+                            
                             # Combine rare and sampled common indices
                             indices = rare_indices + sampled_common_indices.tolist()
                         else:
                             # Just use the rare indices
                             indices = rare_indices
-
+                    
                     # Sample the data
                     X_train = X_train.loc[indices]
                     if isinstance(y_train, pd.DataFrame):
                         y_train = y_train.loc[indices]
                     else:
                         y_train = y_train.loc[indices]
-
+                    
                     print(f"Using {len(X_train)} samples with special class balancing for CTABGAN training.")
                 except Exception as e:
                     print(f"Error during special sampling: {e}")
                     # Fall back to regular stratified sampling
                     X_indices = list(range(len(X_train)))
                     _, sampled_indices = train_test_split(
-                        X_indices,
-                        test_size=min(sample_size / len(X_train), 0.8),
+                        X_indices, 
+                        test_size=min(sample_size/len(X_train), 0.8),
                         stratify=y_values if len(np.unique(y_values)) > 1 else None,
                         random_state=42
                     )
-
+                    
                     X_train = X_train.iloc[sampled_indices]
                     if isinstance(y_train, pd.DataFrame):
                         y_train = y_train.iloc[sampled_indices]
                     else:
                         y_train = y_train.iloc[sampled_indices]
-
+                    
                     print(f"Using {len(X_train)} stratified samples for CTABGAN training.")
             else:
                 # Normal stratified sampling
                 X_indices = list(range(len(X_train)))
                 _, sampled_indices = train_test_split(
-                    X_indices,
-                    test_size=min(sample_size / len(X_train), 0.8),
+                    X_indices, 
+                    test_size=min(sample_size/len(X_train), 0.8),
                     stratify=y_values if len(np.unique(y_values)) > 1 else None,
                     random_state=42
                 )
-
+                
                 X_train = X_train.iloc[sampled_indices]
                 if isinstance(y_train, pd.DataFrame):
                     y_train = y_train.iloc[sampled_indices]
                 else:
                     y_train = y_train.iloc[sampled_indices]
-
+                
                 print(f"Using {len(X_train)} stratified samples for CTABGAN training.")
-
+        
         # Convert X_train to DataFrame if it's not already
         if not isinstance(X_train, pd.DataFrame):
             X_train = pd.DataFrame(X_train)
-
+            
         # Combine X and y
         target_name = y_train.name if hasattr(y_train, 'name') else "target"
         if isinstance(y_train, pd.DataFrame):
@@ -737,54 +737,54 @@ def train_ctabgan(X_train, y_train, categorical_columns=None, epochs=50):
             # Convert Series to DataFrame
             y_df = pd.DataFrame(y_train, columns=[target_name])
             train_data = pd.concat([X_train, y_df], axis=1)
-
+        
         # Create a temporary CSV file to use with CTABGAN
         temp_csv_path = "temp_train_data.csv"
         train_data.to_csv(temp_csv_path, index=False)
-
+        
         # Use fewer epochs for Apple Silicon compatibility
         import os
         if hasattr(os, 'uname') and os.uname().machine == 'arm64':
             print("Apple Silicon detected - using reduced settings for CTABGAN")
             epochs = min(epochs, 5)  # Even fewer epochs on M1/M2
-
+        
         # Identify categorical columns if not provided
         if categorical_columns is None:
             categorical_columns = []
             for col in train_data.columns:
                 if train_data[col].dtype == 'object' or len(np.unique(train_data[col])) < 10:
                     categorical_columns.append(col)
-
+        
         # Identify integer columns
         integer_columns = []
         for col in train_data.columns:
             if col not in categorical_columns and pd.api.types.is_integer_dtype(train_data[col]):
                 integer_columns.append(col)
-
+        
         # Initialize CTABGAN model
         print(f"Training CTABGAN with {epochs} epochs")
         print(f"Categorical columns: {categorical_columns}")
         print(f"Integer columns: {integer_columns}")
-
+        
         # Define problem type (classification by default)
         problem_type = {"Classification": target_name}
-
+        
         # Check for class counts before training
         if isinstance(y_train, pd.DataFrame):
             target_values = y_train.iloc[:, 0]
         else:
             target_values = y_train
-
+            
         class_counts = target_values.value_counts()
         min_class_count = class_counts.min()
-
+        
         if min_class_count < 2:
             print(f"Warning: Target class {class_counts.idxmin()} has only {min_class_count} instances.")
             print("Applying oversampling to ensure at least 2 instances per class.")
-
+            
             # Create a new DataFrame with oversampled rare classes
             oversampled_data = []
-
+            
             # Process each row of the original data
             for i in range(len(X_train)):
                 # Get the class label for this row
@@ -792,27 +792,27 @@ def train_ctabgan(X_train, y_train, categorical_columns=None, epochs=50):
                     class_label = y_train.iloc[i, 0]
                 else:
                     class_label = y_train.iloc[i]
-
+                
                 # Add the original row
                 row_data = X_train.iloc[i].tolist() + [class_label]
                 oversampled_data.append(row_data)
-
+                
                 # If this is a rare class with only 1 instance, duplicate it
                 if class_counts[class_label] == 1:
                     oversampled_data.append(row_data)  # Add it again
-
+            
             # Create a new DataFrame with all columns including target
             all_columns = list(X_train.columns) + [target_name]
             oversampled_df = pd.DataFrame(oversampled_data, columns=all_columns)
-
+            
             # Save the oversampled data
             oversampled_df.to_csv(temp_csv_path, index=False)
             print(f"Saved oversampled data with {len(oversampled_df)} rows to {temp_csv_path}")
-
+            
             # Verify class counts after oversampling
             over_class_counts = oversampled_df[target_name].value_counts()
             print(f"Minimum class count after oversampling: {over_class_counts.min()}")
-
+        
         ctabgan_model = CTABGAN(
             raw_csv_path=temp_csv_path,
             test_ratio=0.2,  # Keep consistent with the evaluation framework's test split
@@ -821,17 +821,17 @@ def train_ctabgan(X_train, y_train, categorical_columns=None, epochs=50):
             problem_type=problem_type,
             epochs=epochs
         )
-
+        
         # Train the model with try-except to handle potential issues
         try:
             ctabgan_model.fit()
         except Exception as e:
             print(f"Error during CTABGAN fitting: {e}")
-
+            
             # Special handling for "least populated class" error
             if "least populated class" in str(e):
                 print("Trying to fix the class imbalance issue...")
-
+                
                 # Create a more balanced dataset by oversampling rare classes even more
                 if isinstance(y_train, pd.DataFrame):
                     # Get class distribution from the DataFrame
@@ -839,40 +839,40 @@ def train_ctabgan(X_train, y_train, categorical_columns=None, epochs=50):
                 else:
                     # Get class distribution from the Series
                     class_distribution = y_train.value_counts()
-
+                
                 # Identify the minimum count needed for each class
                 # Duplicate each class to have at least 3 instances
                 balanced_data = []
-
+                
                 for i in range(len(X_train)):
                     # Get the class label for this row
                     if isinstance(y_train, pd.DataFrame):
                         class_label = y_train.iloc[i, 0]
                     else:
                         class_label = y_train.iloc[i]
-
+                    
                     # Get the original data row
                     if isinstance(y_train, pd.DataFrame):
                         row_data = X_train.iloc[i].tolist() + [y_train.iloc[i, 0]]
                     else:
                         row_data = X_train.iloc[i].tolist() + [y_train.iloc[i]]
-
+                    
                     # Always add the original row
                     balanced_data.append(row_data)
-
+                    
                     # Add duplicates for rare classes
                     if class_distribution[class_label] < 3:
                         # Add enough duplicates to get to 3
                         for _ in range(3 - class_distribution[class_label]):
                             balanced_data.append(row_data)
-
+                
                 # Create a new balanced DataFrame
                 balanced_df = pd.DataFrame(balanced_data, columns=list(X_train.columns) + [target_name])
-
+                
                 # Save balanced data to temporary CSV
                 balanced_df.to_csv(temp_csv_path, index=False)
                 print(f"Created a balanced dataset with {len(balanced_df)} rows")
-
+                
                 # Try recreating and fitting the model with the new balanced data
                 try:
                     ctabgan_model = CTABGAN(
@@ -888,7 +888,7 @@ def train_ctabgan(X_train, y_train, categorical_columns=None, epochs=50):
                     print(f"Second attempt at fitting CTABGAN failed: {e2}")
                     # If it still fails, return None
                     return None
-
+        
         return ctabgan_model
     except Exception as e:
         print(f"Error training CTABGAN model: {e}")
@@ -899,17 +899,17 @@ def train_rlig(X_train, y_train, episodes=2, epochs=5):
     """Train a RLiG model"""
     if not RLIG_AVAILABLE:
         return None
-
+        
     try:
         # Initialize and train RLiG model
         rlig_model = RLiG()
-
+        
         # Ensure the data is properly formatted
         if isinstance(y_train, pd.DataFrame):
             y_series = y_train.iloc[:, 0] if y_train.shape[1] == 1 else y_train
         else:
             y_series = y_train
-
+        
         print(f"Training RLiG with {episodes} episodes and {epochs} epochs")
         rlig_model.fit(X_train, y_series, episodes=episodes, gan=1, k=0, epochs=epochs, n=1)
         return rlig_model
@@ -928,24 +928,25 @@ def train_great(X_train, y_train, batch_size=1, epochs=1):
         # Initialize and train GReaT model
         device = "cuda" if torch.cuda.is_available() else "cpu"
         print(f"CUDA available: {torch.cuda.is_available()}. Using device: {device}")
-
+        
         # Configure GReaT with appropriate parameters and suppress warnings
         great_model = GReaT(
             llm='distilgpt2',
-            batch_size=2,
-            epochs=10,
+            batch_size=32,
+            epochs=2,
             fp16=True,
-            gradient_accumulation_steps=8,
+            #gradient_accumulation_steps=8,
+            dataloader_num_workers=4,
             metric_for_best_model="accuracy"
         )
-
+        
         # Set pad token explicitly to address the attention mask warning
         if hasattr(great_model, 'tokenizer') and great_model.tokenizer is not None:
             if great_model.tokenizer.pad_token is None:
                 great_model.tokenizer.pad_token = great_model.tokenizer.eos_token
                 print("Set pad_token to eos_token to fix attention mask warning")
 
-        # otherwise for Mac, use this
+        #otherwise for Mac, use this
         # great_model = GReaT(llm='unsloth/Llama-3.2-1B', batch_size=batch_size, epochs=epochs,
         #                     metric_for_best_model="accuracy",
         #                     # # For weak machine, add more 3 following lines
@@ -993,17 +994,17 @@ def train_dist_sampl(X_train, y_train, epochs=50, random_seed=42):
     """
     if not DIST_SAMPL_AVAILABLE:
         return None
-
+        
     try:
         # Prepare data for Distribution Sampling (we need to combine X and y)
         combined_data = pd.concat([X_train, y_train], axis=1)
-
+        
         # Identify categorical columns
         categorical_cols = []
         for col in combined_data.columns:
             if len(np.unique(combined_data[col])) < 10:  # Heuristic for categorical columns
                 categorical_cols.append(col)
-
+        
         # Initialize DistSampling with conservative settings and consistent random seed
         print(f"Training Distribution Sampling with {epochs} epochs and random_seed={random_seed}")
         dist_sampl_model = DistSampling(
@@ -1013,7 +1014,7 @@ def train_dist_sampl(X_train, y_train, epochs=50, random_seed=42):
             verbose=True,
             random_seed=random_seed
         )
-
+        
         # Train the model
         dist_sampl_model.fit()
         return dist_sampl_model
@@ -1176,10 +1177,10 @@ def save_synthetic_data(synthetic_data, model_name, dataset_name, directory="tra
     # Small: =< 15,000 rows
     # Medium: 20,000 to 50,000 rows
     # Large: >= 50,000 rows
-
+    
     # For small and medium datasets, save all synthetic data
     # For large datasets, save a meaningful sample
-    if len(synthetic_data) < 50000:
+    if len(synthetic_data) < 20000:
         # Small or medium dataset - save everything
         synthetic_data.to_csv(file_path, index=False)
         print(f"Saved complete {model_name.upper()} synthetic dataset ({len(synthetic_data)} samples) to {file_path}")
@@ -1191,27 +1192,26 @@ def save_synthetic_data(synthetic_data, model_name, dataset_name, directory="tra
             if col.lower() in ['target', 'label', 'class', 'y']:
                 target_col = col
                 break
-
+                
         # For large synthetic datasets, save a stratified sample of 25,000
         if target_col and len(np.unique(synthetic_data[target_col])) > 1:
             from sklearn.model_selection import train_test_split
-
+            
             # Use stratified sampling
             _, sampled_data = train_test_split(
-                synthetic_data,
-                test_size=min(25000 / len(synthetic_data), 0.5),  # Take at most 50% or 25,000
+                synthetic_data, 
+                test_size=min(20000/len(synthetic_data), 0.5),  # Take at most 50% or 20,000
                 stratify=synthetic_data[target_col],
                 random_state=42
             )
         else:
             # Simple random sample if no target column or only one class
-            sample_size = min(25000, len(synthetic_data))
+            sample_size = min(20000, len(synthetic_data))
             sampled_data = synthetic_data.sample(sample_size, random_state=42)
-
+            
         sampled_data.to_csv(file_path, index=False)
-        print(
-            f"Saved representative sample of {model_name.upper()} synthetic data ({len(sampled_data)} of {len(synthetic_data)} samples) to {file_path}")
-
+        print(f"Saved representative sample of {model_name.upper()} synthetic data ({len(sampled_data)} of {len(synthetic_data)} samples) to {file_path}")
+    
     return file_path
 
 
@@ -1221,19 +1221,19 @@ def generate_bn_synthetic_data(bn_model, train_data, n_samples=None):
     """Generate synthetic data from a Bayesian Network model"""
     if not PGMPY_AVAILABLE or bn_model is None:
         return None
-
+    
     if n_samples is None:
         n_samples = len(train_data)
-
+    
     try:
         # Sample from the Bayesian Network
         sampler = BayesianModelSampling(bn_model)
         synthetic_data = sampler.forward_sample(size=n_samples)
-
+        
         # Ensure synthetic data has the same column order as train_data
         col_order = list(train_data.columns)
         synthetic_data = synthetic_data[col_order]
-
+        
         print(f"Generated {len(synthetic_data)} synthetic samples from Bayesian Network")
         return synthetic_data
     except Exception as e:
@@ -1245,42 +1245,42 @@ def generate_nb_synthetic_data(nb_model, X_train, y_train, n_samples=None):
     """Generate synthetic data from a Naive Bayes model"""
     if nb_model is None:
         return None
-
+    
     if n_samples is None:
         n_samples = len(X_train)
-
+    
     try:
         # Get unique classes and their probabilities
         classes, class_counts = np.unique(y_train, return_counts=True)
         class_probs = class_counts / len(y_train)
-
+        
         # Generate synthetic class labels
         synthetic_y = np.random.choice(classes, size=n_samples, p=class_probs)
-
+        
         # Generate synthetic features for each class
         synthetic_X = np.zeros((n_samples, X_train.shape[1]))
-
+        
         for i, c in enumerate(classes):
             # Get indices of samples with this class
             indices = synthetic_y == c
             n_class_samples = indices.sum()
-
+            
             # For each feature, sample from Gaussian distribution with the class's mean and var
             for j in range(X_train.shape[1]):
                 mean = nb_model.theta_[i, j]
                 var = nb_model.var_[i, j]
                 synthetic_X[indices, j] = np.random.normal(mean, np.sqrt(var), n_class_samples)
-
+        
         # Create DataFrame with same column names
         if isinstance(X_train, pd.DataFrame):
             synthetic_X = pd.DataFrame(synthetic_X, columns=X_train.columns)
-
+        
         # Combine features and target
         if isinstance(y_train, pd.DataFrame):
             synthetic_y = pd.DataFrame(synthetic_y, columns=y_train.columns)
         else:
             synthetic_y = pd.Series(synthetic_y, name=y_train.name)
-
+        
         print(f"Generated {n_samples} synthetic samples from Naive Bayes")
         return pd.concat([synthetic_X, synthetic_y], axis=1)
     except Exception as e:
@@ -1292,10 +1292,10 @@ def generate_ctgan_synthetic_data(ctgan_model, train_data, n_samples=None):
     """Generate synthetic data from CTGAN model"""
     if not CTGAN_AVAILABLE or ctgan_model is None:
         return None
-
+        
     if n_samples is None:
         n_samples = len(train_data)
-
+    
     try:
         # For M1/M2 Macs, generate in smaller batches
         import os
@@ -1303,25 +1303,25 @@ def generate_ctgan_synthetic_data(ctgan_model, train_data, n_samples=None):
             print(f"Generating {n_samples} samples in smaller batches for Apple Silicon compatibility")
             batch_size = 500
             num_batches = (n_samples + batch_size - 1) // batch_size  # Ceiling division
-
+            
             # Generate in batches and concatenate
             batches = []
             for i in range(num_batches):
-                print(f"Generating batch {i + 1}/{num_batches}")
-                this_batch_size = min(batch_size, n_samples - i * batch_size)
+                print(f"Generating batch {i+1}/{num_batches}")
+                this_batch_size = min(batch_size, n_samples - i*batch_size)
                 batch = ctgan_model.sample(this_batch_size)
                 batches.append(batch)
-
+            
             synthetic_data = pd.concat(batches, ignore_index=True)
         else:
             # Regular generation for other platforms
             synthetic_data = ctgan_model.sample(n_samples)
-
+            
         print(f"Generated {len(synthetic_data)} synthetic samples from CTGAN")
         return synthetic_data
     except Exception as e:
         print(f"Error generating synthetic data from CTGAN: {e}")
-
+        
         # Fallback: if sampling fails, try to sample a smaller number
         try:
             fallback_samples = min(n_samples, 500)
@@ -1332,7 +1332,6 @@ def generate_ctgan_synthetic_data(ctgan_model, train_data, n_samples=None):
         except Exception as fallback_error:
             print(f"Fallback also failed: {fallback_error}")
             return None
-
 
 def generate_ctabgan_synthetic_data(ctabgan_model, train_data, n_samples=None):
     """Generate synthetic data from CTABGAN model
@@ -1348,23 +1347,23 @@ def generate_ctabgan_synthetic_data(ctabgan_model, train_data, n_samples=None):
     """
     if not CTABGAN_AVAILABLE or ctabgan_model is None:
         return None
-
+        
     if n_samples is None:
         n_samples = len(train_data)
-
+    
     try:
         # CTABGAN's generate_samples() function generates data with the same size as the original dataset
         # We need to adjust the approach to generate the requested number of samples
-
+        
         # Calculate how many times we need to call generate_samples
         batch_size = len(ctabgan_model.raw_df)
         num_batches = (n_samples + batch_size - 1) // batch_size  # Ceiling division
-
+        
         if num_batches > 1:
             print(f"Generating {n_samples} samples in {num_batches} batches")
             batches = []
             for i in range(num_batches):
-                print(f"Generating batch {i + 1}/{num_batches}")
+                print(f"Generating batch {i+1}/{num_batches}")
                 batch = ctabgan_model.generate_samples()
                 # If it's the last batch and we need fewer samples
                 if i == num_batches - 1 and n_samples % batch_size != 0:
@@ -1376,14 +1375,14 @@ def generate_ctabgan_synthetic_data(ctabgan_model, train_data, n_samples=None):
             synthetic_data = ctabgan_model.generate_samples()
             if n_samples < len(synthetic_data):
                 synthetic_data = synthetic_data.head(n_samples)
-
+        
         # Ensure all columns have the correct types
         # Convert any string columns to numeric if they should be numeric
         for col in synthetic_data.columns:
             # Skip the target column
             if col == 'target':
                 continue
-
+                
             # Try to convert to numeric if it's not already
             if synthetic_data[col].dtype == 'object':
                 try:
@@ -1391,19 +1390,19 @@ def generate_ctabgan_synthetic_data(ctabgan_model, train_data, n_samples=None):
                 except:
                     # If conversion fails, leave as is
                     pass
-
+                    
         print(f"Generated {len(synthetic_data)} synthetic samples from CTABGAN")
         return synthetic_data
     except Exception as e:
         print(f"Error generating synthetic data from CTABGAN: {e}")
-
+        
         # Fallback: if sampling fails, try a simple approach
         try:
             print("Trying fallback generation approach")
             synthetic_data = ctabgan_model.generate_samples()
             if len(synthetic_data) > n_samples:
                 synthetic_data = synthetic_data.head(n_samples)
-
+                
             # Same type conversion as above
             for col in synthetic_data.columns:
                 if col == 'target':
@@ -1413,7 +1412,7 @@ def generate_ctabgan_synthetic_data(ctabgan_model, train_data, n_samples=None):
                         synthetic_data[col] = pd.to_numeric(synthetic_data[col])
                     except:
                         pass
-
+                        
             print(f"Generated {len(synthetic_data)} synthetic samples as fallback")
             return synthetic_data
         except Exception as fallback_error:
@@ -1491,25 +1490,25 @@ def generate_dist_sampl_synthetic_data(dist_sampl_model, train_data, n_samples=N
             print(f"Generating {n_samples} samples in smaller batches for Apple Silicon compatibility")
             batch_size = 500
             num_batches = (n_samples + batch_size - 1) // batch_size  # Ceiling division
-
+            
             # Generate in batches and concatenate
             batches = []
             for i in range(num_batches):
-                print(f"Generating batch {i + 1}/{num_batches}")
-                this_batch_size = min(batch_size, n_samples - i * batch_size)
+                print(f"Generating batch {i+1}/{num_batches}")
+                this_batch_size = min(batch_size, n_samples - i*batch_size)
                 batch = dist_sampl_model.sample(this_batch_size)
                 batches.append(batch)
-
+                
             synthetic_data = pd.concat(batches, ignore_index=True)
         else:
             # Regular generation for other platforms
             synthetic_data = dist_sampl_model.sample(n_samples)
-
+            
         print(f"Generated {len(synthetic_data)} synthetic samples from Distribution Sampling")
         return synthetic_data
     except Exception as e:
         print(f"Error generating synthetic data from Distribution Sampling: {e}")
-
+        
         # Fallback: if sampling fails, try to sample a smaller number
         try:
             fallback_samples = min(n_samples, 500)
@@ -1554,7 +1553,7 @@ def generate_tabdiff_synthetic_data(tabdiff_model, train_data, n_samples=None):
         # Regular generation for other platforms
         tabdiff_model.diffusion.eval()
         synthetic_data = tabdiff_model.sample_synthetic(n_samples, ema=True)
-        print("Synthetic data generated", synthetic_data.head())
+
     print(f"Generated {len(synthetic_data)} synthetic samples from TABDIFF")
     return synthetic_data
     # except Exception as e:
@@ -1573,10 +1572,10 @@ def generate_tabdiff_synthetic_data(tabdiff_model, train_data, n_samples=None):
     #     return None
 
 
-# ============= EVALUATION FUNCTIONS =============
-import pandas as pd  # Assuming pandas is used by evaluate_tstr or for y_test handling
-import numpy as np  # Assuming numpy is used by evaluate_tstr
 
+# ============= EVALUATION FUNCTIONS =============
+import pandas as pd # Assuming pandas is used by evaluate_tstr or for y_test handling
+import numpy as np  # Assuming numpy is used by evaluate_tstr
 
 # Placeholder for your actual evaluate_tstr function:
 # def evaluate_tstr(synthetic_data, X_test, y_test, target_col='target'):
@@ -1648,8 +1647,7 @@ def evaluate_models_on_fold(dataset_name, synthetic_data_cache, X_test, y_test, 
         fold_results['metrics'][f"{abbr}_accuracy"] = {}
 
     if dataset_name not in synthetic_data_cache or 'models' not in synthetic_data_cache[dataset_name]:
-        print(
-            f"Warning: Synthetic data cache or 'models' key not found for dataset '{dataset_name}' in evaluate_models_on_fold.")
+        print(f"Warning: Synthetic data cache or 'models' key not found for dataset '{dataset_name}' in evaluate_models_on_fold.")
         # Populate all expected models with None if cache is missing for the dataset
         for model_name_gen in generative_models_to_evaluate:
             for abbr in classifier_abbreviations:
@@ -1664,8 +1662,7 @@ def evaluate_models_on_fold(dataset_name, synthetic_data_cache, X_test, y_test, 
         print(f"\n-- Evaluating {model_name_gen.upper()} synthetic data on fold for dataset '{dataset_name}' --")
 
         if model_name_gen not in all_cached_generative_models:
-            print(
-                f"Warning: No cached data found for generative model '{model_name_gen}' on dataset '{dataset_name}'. Results for this model will be None.")
+            print(f"Warning: No cached data found for generative model '{model_name_gen}' on dataset '{dataset_name}'. Results for this model will be None.")
             for abbr in classifier_abbreviations:
                 fold_results['metrics'][f"{abbr}_accuracy"][model_name_gen] = None
             fold_results['times']['training_time'][model_name_gen] = None
@@ -1684,12 +1681,11 @@ def evaluate_models_on_fold(dataset_name, synthetic_data_cache, X_test, y_test, 
 
         # 2. Get and store BIC score if available
         bic_score = model_cache_item.get('bic')
-        fold_results['bic_scores']['bic'][model_name_gen] = bic_score  # Stores None if bic_score is None or key missing
+        fold_results['bic_scores']['bic'][model_name_gen] = bic_score # Stores None if bic_score is None or key missing
 
         # 3. Evaluate TSTR if synthetic data is available
         if synthetic_data is None:
-            print(
-                f"No synthetic data available for '{model_name_gen}' on '{dataset_name}'. TSTR accuracies will be None.")
+            print(f"No synthetic data available for '{model_name_gen}' on '{dataset_name}'. TSTR accuracies will be None.")
             for abbr in classifier_abbreviations:
                 fold_results['metrics'][f"{abbr}_accuracy"][model_name_gen] = None
             continue
@@ -1698,23 +1694,21 @@ def evaluate_models_on_fold(dataset_name, synthetic_data_cache, X_test, y_test, 
             # Call evaluate_tstr to get accuracies from downstream classifiers
             tstr_accuracies = evaluate_tstr(synthetic_data, X_test, y_test)
 
-            if tstr_accuracies:  # Ensure tstr_accuracies is not None and not empty
+            if tstr_accuracies: # Ensure tstr_accuracies is not None and not empty
                 for classifier_abbr, accuracy_value in tstr_accuracies.items():
-                    metric_key = f"{classifier_abbr}_accuracy"  # e.g., 'LR_accuracy'
-                    if metric_key in fold_results['metrics']:  # Check if it's an expected metric
+                    metric_key = f"{classifier_abbr}_accuracy" # e.g., 'LR_accuracy'
+                    if metric_key in fold_results['metrics']: # Check if it's an expected metric
                         fold_results['metrics'][metric_key][model_name_gen] = accuracy_value
                     else:
-                        print(
-                            f"Warning: Unexpected metric key '{metric_key}' from evaluate_tstr for model '{model_name_gen}'.")
+                        print(f"Warning: Unexpected metric key '{metric_key}' from evaluate_tstr for model '{model_name_gen}'.")
                 # Ensure all expected classifier metrics are populated, even if not returned by evaluate_tstr for some reason
                 for abbr in classifier_abbreviations:
                     expected_metric_key = f"{abbr}_accuracy"
                     if model_name_gen not in fold_results['metrics'][expected_metric_key]:
-                        fold_results['metrics'][expected_metric_key][model_name_gen] = tstr_accuracies.get(abbr, None)
+                         fold_results['metrics'][expected_metric_key][model_name_gen] = tstr_accuracies.get(abbr, None)
 
-            else:  # tstr_accuracies was None or empty
-                print(
-                    f"evaluate_tstr returned no results for '{model_name_gen}' on '{dataset_name}'. Accuracies set to None.")
+            else: # tstr_accuracies was None or empty
+                print(f"evaluate_tstr returned no results for '{model_name_gen}' on '{dataset_name}'. Accuracies set to None.")
                 for abbr in classifier_abbreviations:
                     fold_results['metrics'][f"{abbr}_accuracy"][model_name_gen] = None
 
@@ -1724,7 +1718,6 @@ def evaluate_models_on_fold(dataset_name, synthetic_data_cache, X_test, y_test, 
                 fold_results['metrics'][f"{abbr}_accuracy"][model_name_gen] = None
 
     return fold_results
-
 
 def average_fold_results(fold_results):
     """Average results across multiple folds
@@ -1885,35 +1878,35 @@ def evaluate_tstr(synthetic_data, X_test, y_test,
     if synthetic_data is None:
         return {'LR': None, 'MLP': None, 'RF': None, 'XGB': None, 'AVG': None}
 
-    # try:
-    # Split synthetic data into features and target
-    if target_col in synthetic_data.columns:
-        syn_X = synthetic_data.drop(target_col, axis=1)
-        syn_y = synthetic_data[[target_col]].rename(columns={target_col: 'target'})
-    else:
-        # If target column isn't found, assume last column is target
-        syn_X = synthetic_data.iloc[:, :-1]
-        syn_y = synthetic_data.iloc[:, -1]
+    try:
+        # Split synthetic data into features and target
+        if target_col in synthetic_data.columns:
+            syn_X = synthetic_data.drop(target_col, axis=1)
+            syn_y = synthetic_data[target_col]
+        else:
+            # If target column isn't found, assume last column is target
+            syn_X = synthetic_data.iloc[:, :-1]
+            syn_y = synthetic_data.iloc[:, -1]
 
-    # Debug target variables
-    print(f"Synthetic target type: {type(syn_y)}, values: {syn_y.head()}")
-    print(f"Test target type: {type(y_test)}, values: {y_test.head()}")
+        # Debug target variables
+        print(f"Synthetic target type: {type(syn_y)}, values: {syn_y.head()}")
+        print(f"Test target type: {type(y_test)}, values: {y_test.head()}")
 
-    # Initialize label encoder
-    label_encoder = LabelEncoder()
+        # Initialize label encoder
+        label_encoder = LabelEncoder()
 
-    # Ensure targets are in a format classifiers can work with
-    for y_var, name in [(syn_y, "synthetic"), (y_test, "test")]:
-        if isinstance(y_var, pd.Series) or isinstance(y_var, pd.DataFrame):
-            # Try to convert to numeric if possible
-            try:
-                if name == "synthetic":
-                    syn_y = pd.to_numeric(y_var)
-                else:
-                    y_test = pd.to_numeric(y_var)
-            except:
-                # If conversion fails, just use label encoder
-                print(f"Numeric conversion failed for {name}, using label encoder")
+        # Ensure targets are in a format classifiers can work with
+        for y_var, name in [(syn_y, "synthetic"), (y_test, "test")]:
+            if isinstance(y_var, pd.Series) or isinstance(y_var, pd.DataFrame):
+                # Try to convert to numeric if possible
+                try:
+                    if name == "synthetic":
+                        syn_y = pd.to_numeric(y_var)
+                    else:
+                        y_test = pd.to_numeric(y_var)
+                except:
+                    # If conversion fails, just use label encoder
+                    print(f"Numeric conversion failed for {name}, using label encoder")
 
             # If it's still a DataFrame with 1 column, convert to Series
             if isinstance(y_var, pd.DataFrame) and y_var.shape[1] == 1:
@@ -1922,364 +1915,354 @@ def evaluate_tstr(synthetic_data, X_test, y_test,
                 else:
                     y_test = y_var.iloc[:, 0]
 
-    # Use Label Encoding
-    # Check if unique values are different and apply encoding if needed
-    syn_unique = get_unique_values(syn_y)
-    test_unique = get_unique_values(y_test)
+        # Use Label Encoding
+        # Check if unique values are different and apply encoding if needed
+        syn_unique = get_unique_values(syn_y)
+        test_unique = get_unique_values(y_test)
 
-    print(f"Synthetic unique values: {syn_unique}")
-    print(f"Test unique values: {test_unique}")
+        print(f"Synthetic unique values: {syn_unique}")
+        print(f"Test unique values: {test_unique}")
 
-    if not np.array_equal(sorted(syn_unique), sorted(test_unique)):
-        print("Unique values are different, applying label encoding...")
+        if not np.array_equal(sorted(syn_unique), sorted(test_unique)):
+            print("Unique values are different, applying label encoding...")
 
-        # Apply label encoding
-        syn_y_data = get_data_for_encoding(syn_y)
-        test_y_data = get_data_for_encoding(y_test)
+            # Apply label encoding
+            syn_y_data = get_data_for_encoding(syn_y)
+            test_y_data = get_data_for_encoding(y_test)
 
-        syn_y_encoded = label_encoder.fit_transform(syn_y_data)
+            syn_y_encoded = label_encoder.fit_transform(syn_y_data)
 
-        # Convert syn_y back to DataFrame format
-        if isinstance(syn_y, pd.DataFrame):
-            # Keep the same column name and index
-            syn_y = pd.DataFrame(syn_y_encoded,
-                                 columns=syn_y.columns,
-                                 index=syn_y.index)
+            # Convert syn_y back to DataFrame format
+            if isinstance(syn_y, pd.DataFrame):
+                # Keep the same column name and index
+                syn_y = pd.DataFrame(syn_y_encoded,
+                                     columns=syn_y.columns,
+                                     index=syn_y.index)
+            else:
+                # Create a new DataFrame with appropriate column name
+                syn_y = pd.DataFrame(syn_y_encoded,
+                                     columns=['target'],
+                                     index=syn_y.index if hasattr(syn_y, 'index') else None)
+
+            print(f"Synthetic labels encoded: {syn_y}")
+            print(f"Test labels encoded: {y_test}")
         else:
-            # Create a new DataFrame with appropriate column name
-            syn_y = pd.DataFrame(syn_y_encoded,
-                                 columns=['target'],
-                                 index=syn_y.index if hasattr(syn_y, 'index') else None)
+            print("Unique values are the same, no additional encoding needed")
 
-        print(f"Synthetic labels encoded: {syn_y}")
-        print(f"Test labels encoded: {y_test}")
-    else:
-        print("Unique values are the same, no additional encoding needed")
-
-    # Ensure synthetic data has the same types as test data
-    for col in X_test.columns:
-        if col in syn_X.columns:
-            # Convert synthetic columns to the same type as test columns
-            try:
-                syn_X[col] = syn_X[col].astype(X_test[col].dtype)
-            except:
-                # If conversion fails, try to convert both to float
+        # Ensure synthetic data has the same types as test data
+        for col in X_test.columns:
+            if col in syn_X.columns:
+                # Convert synthetic columns to the same type as test columns
                 try:
-                    syn_X[col] = syn_X[col].astype(float)
-                    if X_test[col].dtype != float:
-                        X_test[col] = X_test[col].astype(float)
+                    syn_X[col] = syn_X[col].astype(X_test[col].dtype)
                 except:
-                    # If that still fails, just continue (will use available columns only)
-                    print(f"Warning: Could not convert column {col} to matching type")
+                    # If conversion fails, try to convert both to float
+                    try:
+                        syn_X[col] = syn_X[col].astype(float)
+                        if X_test[col].dtype != float:
+                            X_test[col] = X_test[col].astype(float)
+                    except:
+                        # If that still fails, just continue (will use available columns only)
+                        print(f"Warning: Could not convert column {col} to matching type")
 
-    # For TabDiff, convert period (.) to underscore (_) in column names
-    syn_X = syn_X.rename(columns={col: col.replace('.', '_') for col in syn_X.columns})
-    syn_X = syn_X.rename(columns={col: col.replace('-', '_') for col in syn_X.columns})
+        # For TabDiff, convert period (.) to underscore (_) in column names
+        syn_X = syn_X.rename(columns={col: col.replace('.', '_') for col in syn_X.columns})
+        syn_X = syn_X.rename(columns={col: col.replace('-', '_') for col in syn_X.columns})
 
-    # Ensure column orders match exactly between synthetic and test data
-    print(f"Synthetic X columns: {syn_X.columns.tolist()}")
-    print(f"Test X columns: {X_test.columns.tolist()}")
+        # Ensure column orders match exactly between synthetic and test data
+        print(f"Synthetic X columns: {syn_X.columns.tolist()}")
+        print(f"Test X columns: {X_test.columns.tolist()}")
 
-    # Reorder synthetic columns to match test data if needed
-    if list(syn_X.columns) != list(X_test.columns):
-        print("Reordering synthetic data columns to match test data...")
-        try:
-            syn_X = syn_X[X_test.columns]
-        except KeyError as e:
-            print(f"Column mismatch between synthetic and test data: {e}")
-            print("Using available columns only...")
-            common_cols = list(set(syn_X.columns).intersection(set(X_test.columns)))
-            syn_X = syn_X[common_cols]
-            X_test = X_test[common_cols]
+        # Reorder synthetic columns to match test data if needed
+        if list(syn_X.columns) != list(X_test.columns):
+            print("Reordering synthetic data columns to match test data...")
+            try:
+                syn_X = syn_X[X_test.columns]
+            except KeyError as e:
+                print(f"Column mismatch between synthetic and test data: {e}")
+                print("Using available columns only...")
+                common_cols = list(set(syn_X.columns).intersection(set(X_test.columns)))
+                syn_X = syn_X[common_cols]
+                X_test = X_test[common_cols]
 
-    # CRITICAL: Preprocess both datasets to ensure consistent data types
-    print("Preprocessing data to ensure consistent types...")
+        # CRITICAL: Preprocess both datasets to ensure consistent data types
+        print("Preprocessing data to ensure consistent types...")
 
-    # Make copies to avoid modifying original data
-    syn_X_processed = syn_X.copy()
-    X_test_processed = X_test.copy()
+        # Make copies to avoid modifying original data
+        syn_X_processed = syn_X.copy()
+        X_test_processed = X_test.copy()
 
-    # For each column, determine if it should be categorical or numerical
-    categorical_columns = []
-    numerical_columns = []
+        # For each column, determine if it should be categorical or numerical
+        categorical_columns = []
+        numerical_columns = []
 
-    for col in X_test.columns:
-        # Get all unique values from both datasets
-        syn_vals = syn_X_processed[col].dropna().unique()
-        test_vals = X_test_processed[col].dropna().unique()
-        all_vals = np.concatenate([syn_vals, test_vals])
+        for col in X_test.columns:
+            # Get all unique values from both datasets
+            syn_vals = syn_X_processed[col].dropna().unique()
+            test_vals = X_test_processed[col].dropna().unique()
+            all_vals = np.concatenate([syn_vals, test_vals])
 
-        # Try to determine if this is categorical or numeric
-        is_categorical = False
+            # Try to determine if this is categorical or numeric
+            is_categorical = False
 
-        # Check for string values that can't be converted to numbers
-        for val in all_vals:
-            if isinstance(val, str):
-                # Try to convert to float
-                try:
-                    float(val)
-                except (ValueError, TypeError):
+            # Check for string values that can't be converted to numbers
+            for val in all_vals:
+                if isinstance(val, str):
+                    # Try to convert to float
+                    try:
+                        float(val)
+                    except (ValueError, TypeError):
+                        is_categorical = True
+                        break
+                elif not isinstance(val, (int, float, np.integer, np.floating)):
                     is_categorical = True
                     break
-            elif not isinstance(val, (int, float, np.integer, np.floating)):
-                is_categorical = True
-                break
 
-        # Also check if it has very few unique values (likely categorical)
-        if not is_categorical:
-            unique_ratio = len(np.unique(all_vals)) / len(all_vals)
-            if unique_ratio < 0.1:  # Less than 10% unique values
-                is_categorical = True
+            # Also check if it has very few unique values (likely categorical)
+            if not is_categorical:
+                unique_ratio = len(np.unique(all_vals)) / len(all_vals)
+                if unique_ratio < 0.1:  # Less than 10% unique values
+                    is_categorical = True
 
-        print(f"Column '{col}' detected as {'categorical' if is_categorical else 'numerical'}")
+            print(f"Column '{col}' detected as {'categorical' if is_categorical else 'numerical'}")
 
-        if is_categorical:
-            categorical_columns.append(col)
-            # Convert to string to ensure consistency
-            syn_X_processed[col] = syn_X_processed[col].astype(str)
-            X_test_processed[col] = X_test_processed[col].astype(str)
+            if is_categorical:
+                categorical_columns.append(col)
+                # Convert to string to ensure consistency
+                syn_X_processed[col] = syn_X_processed[col].astype(str)
+                X_test_processed[col] = X_test_processed[col].astype(str)
+            else:
+                numerical_columns.append(col)
+                # Convert to float, handling any conversion errors
+                syn_X_processed[col] = pd.to_numeric(syn_X_processed[col], errors='coerce')
+                X_test_processed[col] = pd.to_numeric(X_test_processed[col], errors='coerce')
+
+        print(f"Categorical columns: {categorical_columns}")
+        print(f"Numerical columns: {numerical_columns}")
+
+        # Define classification models
+        # Check if we have enough data for early stopping
+        if len(syn_y) >= 20:  # Need at least 10 samples for reasonable validation split
+            models = {
+                'LR': LogisticRegression(max_iter=1000),
+                'MLP': MLPClassifier(max_iter=500, early_stopping=True, validation_fraction=0.1),
+                'RF': RandomForestClassifier(n_estimators=100)
+            }
         else:
-            numerical_columns.append(col)
-            # Convert to float, handling any conversion errors
-            syn_X_processed[col] = pd.to_numeric(syn_X_processed[col], errors='coerce')
-            X_test_processed[col] = pd.to_numeric(X_test_processed[col], errors='coerce')
+            # For small datasets, disable early stopping
+            models = {
+                'LR': LogisticRegression(max_iter=1000),
+                'MLP': MLPClassifier(max_iter=500, early_stopping=False),
+                'RF': RandomForestClassifier(n_estimators=100)
+            }
 
-    print(f"Categorical columns: {categorical_columns}")
-    print(f"Numerical columns: {numerical_columns}")
-
-    # Define classification models
-    # Check if we have enough data for early stopping
-    if len(syn_y) >= 20:  # Need at least 10 samples for reasonable validation split
-        models = {
-            'LR': LogisticRegression(max_iter=1000),
-            'MLP': MLPClassifier(max_iter=500, early_stopping=True, validation_fraction=0.1),
-            'RF': RandomForestClassifier(n_estimators=100)
-        }
-    else:
-        # For small datasets, disable early stopping
-        models = {
-            'LR': LogisticRegression(max_iter=1000),
-            'MLP': MLPClassifier(max_iter=500, early_stopping=False),
-            'RF': RandomForestClassifier(n_estimators=100)
-        }
-
-    # Add XGBoost if available (with compatibility settings)
-    if XGBOOST_AVAILABLE:
-        try:
-            # Try different parameter combinations based on XGBoost version
+        # Add XGBoost if available (with compatibility settings)
+        if XGBOOST_AVAILABLE:
             try:
-                # Newer XGBoost versions
-                models['XGB'] = xgb.XGBClassifier(
-                    n_estimators=100,
-                    learning_rate=0.1,
-                    enable_categorical=False,  # Avoid categorical feature warning
-                    use_label_encoder=False  # Compatibility for older versions
-                )
-            except TypeError:
-                # Older XGBoost versions
-                models['XGB'] = xgb.XGBClassifier(
-                    n_estimators=100,
-                    learning_rate=0.1
-                )
-        except Exception as e:
-            print(f"Could not initialize XGBoost classifier: {e}")
-            # Don't add XGB to models in case of error
+                # Try different parameter combinations based on XGBoost version
+                try:
+                    # Newer XGBoost versions
+                    models['XGB'] = xgb.XGBClassifier(
+                        n_estimators=100,
+                        learning_rate=0.1,
+                        enable_categorical=False,  # Avoid categorical feature warning
+                        use_label_encoder=False  # Compatibility for older versions
+                    )
+                except TypeError:
+                    # Older XGBoost versions
+                    models['XGB'] = xgb.XGBClassifier(
+                        n_estimators=100,
+                        learning_rate=0.1
+                    )
+            except Exception as e:
+                print(f"Could not initialize XGBoost classifier: {e}")
+                # Don't add XGB to models in case of error
 
-    results = {}
+        results = {}
 
-    # Create preprocessing pipeline
-    from sklearn.compose import ColumnTransformer
+        # Create preprocessing pipeline
+        from sklearn.compose import ColumnTransformer
 
-    # Build transformers list
-    transformers = []
-    if numerical_columns:
-        transformers.append(('num', StandardScaler(), numerical_columns))
-    if categorical_columns:
-        transformers.append(
-            ('cat', OneHotEncoder(handle_unknown='ignore', sparse_output=False, dtype='float64'), categorical_columns))
+        # Build transformers list
+        transformers = []
+        if numerical_columns:
+            transformers.append(('num', StandardScaler(), numerical_columns))
+        if categorical_columns:
+            transformers.append(
+                ('cat', OneHotEncoder(handle_unknown='ignore', sparse_output=False, dtype='float64'), categorical_columns))
 
-    if transformers:
-        preprocessor = ColumnTransformer(
-            transformers=transformers,
-            remainder='passthrough'
-        )
-    else:
-        # If no specific preprocessing needed, use identity
-        preprocessor = None
-
-    # Get feature categories for one-hot encoding
-    # categories = [np.unique(np.concatenate([syn_X[col].unique(), X_test[col].unique()])) for col in X_test.columns]
-    # categories = [
-    #     np.unique(np.concatenate([
-    #         syn_X[col].astype(str).unique(),
-    #         X_test[col].astype(str).unique()
-    #     ]))
-    #     for col in X_test.columns
-    # ]
-
-    for name, model in models.items():
-        # try:
-        print(f"Training {name} on synthetic data...")
-
-        if preprocessor is not None:
-            # Create pipeline with preprocessing
-            pipeline = Pipeline([
-                ('preprocessor', preprocessor),
-                ('model', model)
-            ])
+        if transformers:
+            preprocessor = ColumnTransformer(
+                transformers=transformers,
+                remainder='passthrough'
+            )
         else:
-            # No preprocessing needed
-            pipeline = Pipeline([
-                ('model', model)
-            ])
+            # If no specific preprocessing needed, use identity
+            preprocessor = None
 
-        # # # Sort categories for numerical columns
-        # # for i, col in enumerate(X_test.columns):
-        # #     if pd.api.types.is_numeric_dtype(X_test[col]):
-        # #         categories[i] = np.sort(categories[i])
-        #
-        # # # Convert categories properly with explicit sorting for numerical columns
-        # # corrected_categories = []
-        # # for i, col in enumerate(X_test.columns):
-        # #     cat_values = np.concatenate([syn_X[col].unique(), X_test[col].unique()])
-        # #
-        # #     # Check if this is a numeric column
-        # #     is_numeric = pd.api.types.is_numeric_dtype(X_test[col])
-        # #     print(col, is_numeric)
-        # #
-        # #     if is_numeric:
-        # #         # Convert to float and sort
-        # #         numeric_cats = np.unique(cat_values.astype(float))
-        # #         corrected_categories.append(np.sort(numeric_cats))
-        # #     else:
-        # #         # Keep as categorical
-        # #         corrected_categories.append(np.unique(cat_values))
-        #
-        # # # Explicitly check if column contains non-numeric strings before conversion
-        # # corrected_categories = []
-        # # for i, col in enumerate(X_test.columns):
-        # #     cat_values = np.concatenate([syn_X[col].unique(), X_test[col].unique()])
-        # #
-        # #     # Check if ALL values can be converted to float
-        # #     try:
-        # #         # Try converting to float - if it works for all values, it's numeric
-        # #         _ = [float(x) for x in cat_values]
-        # #         is_numeric = True
-        # #     except (ValueError, TypeError):
-        # #         # If ANY conversion fails, treat as categorical
-        # #         is_numeric = False
-        # #
-        # #     if is_numeric:
-        # #         # Convert to float and sort
-        # #         numeric_cats = np.unique(np.array([float(x) for x in cat_values]))
-        # #         corrected_categories.append(np.sort(numeric_cats))
-        # #     else:
-        # #         # Keep as categorical
-        # #         corrected_categories.append(np.unique(cat_values))
-        # #
-        # #     print(f"Column '{col}' is {'numeric' if is_numeric else 'categorical'}")
-        #
-        # # Detect categorical columns by examining data types and values
-        # corrected_categories = []
-        # for i, col in enumerate(X_test.columns):
-        #     # Get unique values from both datasets
-        #     syn_vals = syn_X[col].unique().tolist()
-        #     test_vals = X_test[col].unique().tolist()
-        #     all_vals = syn_vals + test_vals
-        #
-        #     # Try to determine if this is categorical or numeric
-        #     is_categorical = False
-        #
-        #     # Check for non-numeric values
-        #     for val in all_vals:
-        #         # Skip NaN values in check
-        #         if pd.isna(val):
-        #             continue
-        #         # If we find any string or non-numeric value, mark as categorical
-        #         if isinstance(val, str) and not val.strip().replace('.', '', 1).replace('-', '', 1).isdigit():
-        #             is_categorical = True
-        #             break
-        #         # Check other non-numeric types
-        #         if not isinstance(val, (int, float, np.integer, np.floating)):
-        #             is_categorical = True
-        #             break
-        #
-        #     print(f"Column '{col}' detected as {'categorical' if is_categorical else 'numeric'}")
-        #
-        #     # Process based on detected type
-        #     if is_categorical:
-        #         # Convert all to strings for categorical column
-        #         all_vals_str = [str(x) for x in all_vals if not pd.isna(x)]
-        #         unique_vals = list(set(all_vals_str))
-        #         corrected_categories.append(np.array(unique_vals))
-        #     else:
-        #         # Process as numeric column
-        #         numeric_vals = []
-        #         for val in all_vals:
-        #             if pd.isna(val):
-        #                 continue
-        #             try:
-        #                 numeric_vals.append(float(val))
-        #             except (ValueError, TypeError):
-        #                 # If any conversion fails, we need to treat as strings
-        #                 is_categorical = True
-        #                 break
-        #
-        #         if is_categorical:
-        #             # Handle the fallback case
-        #             print(f"Fallback: Column '{col}' contains mixed types, treating as categorical")
-        #             all_vals_str = [str(x) for x in all_vals if not pd.isna(x)]
-        #             unique_vals = list(set(all_vals_str))
-        #             corrected_categories.append(np.array(unique_vals))
-        #         else:
-        #             # All numeric values
-        #             unique_vals = sorted(set(numeric_vals))
-        #             corrected_categories.append(np.array(unique_vals))
-        #
-        # # Let scikit-learn handle categories automatically
-        # from sklearn.compose import ColumnTransformer
-        #
-        # # Create a more robust pipeline
-        # pipeline = Pipeline([
-        #     ('preprocessor', ColumnTransformer(
-        #         transformers=[
-        #             ('onehotencoder', OneHotEncoder(handle_unknown='ignore', sparse_output=False),
-        #              list(range(len(X_test.columns))))
-        #         ],
-        #         remainder='passthrough'
-        #     )),
-        #     ('model', model)
-        # ])
+        for name, model in models.items():
+            try:
+                print(f"Training {name} on synthetic data...")
 
-        # pipeline = Pipeline([
-        #     ('encoder', OneHotEncoder(categories=corrected_categories, handle_unknown='ignore', sparse_output=False)),
-        #     ('model', model)
-        # ])
+                if preprocessor is not None:
+                    # Create pipeline with preprocessing
+                    pipeline = Pipeline([
+                        ('preprocessor', preprocessor),
+                        ('model', model)
+                    ])
+                else:
+                    # No preprocessing needed
+                    pipeline = Pipeline([
+                        ('model', model)
+                    ])
 
-        # Train on synthetic data (preprocessed)
-        pipeline.fit(syn_X_processed, syn_y)
+                # # # Sort categories for numerical columns
+                # # for i, col in enumerate(X_test.columns):
+                # #     if pd.api.types.is_numeric_dtype(X_test[col]):
+                # #         categories[i] = np.sort(categories[i])
+                #
+                # # # Convert categories properly with explicit sorting for numerical columns
+                # # corrected_categories = []
+                # # for i, col in enumerate(X_test.columns):
+                # #     cat_values = np.concatenate([syn_X[col].unique(), X_test[col].unique()])
+                # #
+                # #     # Check if this is a numeric column
+                # #     is_numeric = pd.api.types.is_numeric_dtype(X_test[col])
+                # #     print(col, is_numeric)
+                # #
+                # #     if is_numeric:
+                # #         # Convert to float and sort
+                # #         numeric_cats = np.unique(cat_values.astype(float))
+                # #         corrected_categories.append(np.sort(numeric_cats))
+                # #     else:
+                # #         # Keep as categorical
+                # #         corrected_categories.append(np.unique(cat_values))
+                #
+                # # # Explicitly check if column contains non-numeric strings before conversion
+                # # corrected_categories = []
+                # # for i, col in enumerate(X_test.columns):
+                # #     cat_values = np.concatenate([syn_X[col].unique(), X_test[col].unique()])
+                # #
+                # #     # Check if ALL values can be converted to float
+                # #     try:
+                # #         # Try converting to float - if it works for all values, it's numeric
+                # #         _ = [float(x) for x in cat_values]
+                # #         is_numeric = True
+                # #     except (ValueError, TypeError):
+                # #         # If ANY conversion fails, treat as categorical
+                # #         is_numeric = False
+                # #
+                # #     if is_numeric:
+                # #         # Convert to float and sort
+                # #         numeric_cats = np.unique(np.array([float(x) for x in cat_values]))
+                # #         corrected_categories.append(np.sort(numeric_cats))
+                # #     else:
+                # #         # Keep as categorical
+                # #         corrected_categories.append(np.unique(cat_values))
+                # #
+                # #     print(f"Column '{col}' is {'numeric' if is_numeric else 'categorical'}")
+                #
+                # # Detect categorical columns by examining data types and values
+                # corrected_categories = []
+                # for i, col in enumerate(X_test.columns):
+                #     # Get unique values from both datasets
+                #     syn_vals = syn_X[col].unique().tolist()
+                #     test_vals = X_test[col].unique().tolist()
+                #     all_vals = syn_vals + test_vals
+                #
+                #     # Try to determine if this is categorical or numeric
+                #     is_categorical = False
+                #
+                #     # Check for non-numeric values
+                #     for val in all_vals:
+                #         # Skip NaN values in check
+                #         if pd.isna(val):
+                #             continue
+                #         # If we find any string or non-numeric value, mark as categorical
+                #         if isinstance(val, str) and not val.strip().replace('.', '', 1).replace('-', '', 1).isdigit():
+                #             is_categorical = True
+                #             break
+                #         # Check other non-numeric types
+                #         if not isinstance(val, (int, float, np.integer, np.floating)):
+                #             is_categorical = True
+                #             break
+                #
+                #     print(f"Column '{col}' detected as {'categorical' if is_categorical else 'numeric'}")
+                #
+                #     # Process based on detected type
+                #     if is_categorical:
+                #         # Convert all to strings for categorical column
+                #         all_vals_str = [str(x) for x in all_vals if not pd.isna(x)]
+                #         unique_vals = list(set(all_vals_str))
+                #         corrected_categories.append(np.array(unique_vals))
+                #     else:
+                #         # Process as numeric column
+                #         numeric_vals = []
+                #         for val in all_vals:
+                #             if pd.isna(val):
+                #                 continue
+                #             try:
+                #                 numeric_vals.append(float(val))
+                #             except (ValueError, TypeError):
+                #                 # If any conversion fails, we need to treat as strings
+                #                 is_categorical = True
+                #                 break
+                #
+                #         if is_categorical:
+                #             # Handle the fallback case
+                #             print(f"Fallback: Column '{col}' contains mixed types, treating as categorical")
+                #             all_vals_str = [str(x) for x in all_vals if not pd.isna(x)]
+                #             unique_vals = list(set(all_vals_str))
+                #             corrected_categories.append(np.array(unique_vals))
+                #         else:
+                #             # All numeric values
+                #             unique_vals = sorted(set(numeric_vals))
+                #             corrected_categories.append(np.array(unique_vals))
+                #
+                # # Let scikit-learn handle categories automatically
+                # from sklearn.compose import ColumnTransformer
+                #
+                # # Create a more robust pipeline
+                # pipeline = Pipeline([
+                #     ('preprocessor', ColumnTransformer(
+                #         transformers=[
+                #             ('onehotencoder', OneHotEncoder(handle_unknown='ignore', sparse_output=False),
+                #              list(range(len(X_test.columns))))
+                #         ],
+                #         remainder='passthrough'
+                #     )),
+                #     ('model', model)
+                # ])
 
-        # Test on real data (preprocessed)
-        y_pred = pipeline.predict(X_test_processed)
-        acc = accuracy_score(y_test, y_pred)
-        results[name] = acc
-        print(f"{name} TSTR accuracy: {acc:.4f}")
-        # except Exception as e:
-        #     print(f"Error evaluating {name}: {e}")
-        #     results[name] = None
+                # pipeline = Pipeline([
+                #     ('encoder', OneHotEncoder(categories=corrected_categories, handle_unknown='ignore', sparse_output=False)),
+                #     ('model', model)
+                # ])
 
-    # Calculate average accuracy across all models (as done in the paper)
-    valid_accs = [acc for acc in results.values() if acc is not None]
-    if valid_accs:
-        results['AVG'] = sum(valid_accs) / len(valid_accs)
-        print(f"Average TSTR accuracy: {results['AVG']:.4f}")
-    else:
-        results['AVG'] = None
+                # Train on synthetic data (preprocessed)
+                pipeline.fit(syn_X_processed, syn_y)
 
-    return results
-    # except Exception as e:
-    #     print(f"Error in TSTR evaluation: {e}")
-    #     return {'LR': None, 'MLP': None, 'RF': None, 'XGB': None, 'AVG': None}
+                # Test on real data (preprocessed)
+                y_pred = pipeline.predict(X_test_processed)
+                acc = accuracy_score(y_test, y_pred)
+                results[name] = acc
+                print(f"{name} TSTR accuracy: {acc:.4f}")
+            except Exception as e:
+                print(f"Error evaluating {name}: {e}")
+                results[name] = None
+
+        # Calculate average accuracy across all models (as done in the paper)
+        valid_accs = [acc for acc in results.values() if acc is not None]
+        if valid_accs:
+            results['AVG'] = sum(valid_accs) / len(valid_accs)
+            print(f"Average TSTR accuracy: {results['AVG']:.4f}")
+        else:
+            results['AVG'] = None
+
+        return results
+    except Exception as e:
+        print(f"Error in TSTR evaluation: {e}")
+        return {'LR': None, 'MLP': None, 'RF': None, 'XGB': None, 'AVG': None}
 
 
 def get_gaussianNB_bic_score(model, data):
@@ -2310,10 +2293,11 @@ def get_gaussianNB_bic_score(model, data):
         print(f"Error calculating BIC score: {e}")
         return None
 
-        # ============= MODEL EVALUATION IMPLEMENTATIONS =============
-        # Note: The train_and_evaluate_* functions (originally located here) have been removed
-        # as they are not used in the current implementation. The actual model evaluation
-        # is done in the evaluate_models_on_fold() function.
+
+# ============= MODEL EVALUATION IMPLEMENTATIONS =============
+# Note: The train_and_evaluate_* functions (originally located here) have been removed
+# as they are not used in the current implementation. The actual model evaluation
+# is done in the evaluate_models_on_fold() function.
 
         print(f"Error with Naive Bayes: {e}")
 
@@ -2321,10 +2305,10 @@ def get_gaussianNB_bic_score(model, data):
 # ============= MAIN COMPARISON FUNCTION =============
 
 
+
 def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episodes=2, rlig_epochs=5,
-                        ctgan_epochs=50, great_bs=1, great_epochs=5, dist_sampl_epochs=50, verbose=False,
-                        discretize=True,
-                        use_cv=False, n_folds=2, nested_cv=False, tabdiff_epochs=5):
+                  ctgan_epochs=10, great_bs=1, great_epochs=2, dist_sampl_epochs=10, verbose=False, discretize=True,
+                  use_cv=False, n_folds=2, nested_cv=False, tabdiff_epochs=5):
     """
     Compare generative models using TSTR methodology as described in the paper
     with multiple rounds of cross-validation for robustness
@@ -2341,7 +2325,8 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
     # ... (other parameters)
     """
     if models is None:
-        models = ['rlig', 'ganblr', 'ganblr++', 'ctgan', 'ctabgan', 'nb', 'great', 'dist_sampl', 'tabdiff']
+        models = ['rlig', 'ganblr', 'ganblr++', 'ctgan', 'ctabgan', 'nb', 'great', 'dist_sampl']
+        #add , 'tabdiff' later
 
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -2366,15 +2351,16 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
         print(f"  - RLiG episodes: {rlig_episodes}")
         print(f"  - RLiG epochs: {rlig_epochs}")
         print(f"  - CTGAN epochs: {ctgan_epochs}")
-        print(f"  - GReaT epochs: {great_epochs}")  # Corrected from great_bs to great_epochs for print
+        print(f"  - GReaT epochs: {great_epochs}") # Corrected from great_bs to great_epochs for print
         print(f"  - DistSampl epochs: {dist_sampl_epochs}")
         print(f"  - TabDiff epochs: {tabdiff_epochs}")
+
 
     synthetic_data_cache = {}
     print("\n\n== GENERATING SYNTHETIC DATA FOR ALL MODELS ==\n")
 
     for name, dataset_info in datasets.items():
-        print(f"\n{'=' * 50}\nProcessing dataset: {name}\n{'=' * 50}")
+        print(f"\n{'='*50}\nProcessing dataset: {name}\n{'='*50}")
         X, y = load_dataset(name, dataset_info)
         if X is None or y is None:
             continue
@@ -2446,7 +2432,7 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
                         synthetic_data_cache[name]['models']['ganblr++'] = {
                             'data': hc_synthetic, 'bic': hc_bic, 'train_time': model_train_time
                         }
-                        save_synthetic_data(hc_synthetic, "ganblrpp", name)  # Assuming save_synthetic_data exists
+                        save_synthetic_data(hc_synthetic, "ganblrpp", name) # Assuming save_synthetic_data exists
                 else:
                     synthetic_data_cache[name]['models']['ganblr++'] = {'data': None, 'train_time': model_train_time}
             except Exception as e:
@@ -2485,8 +2471,7 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
             try:
                 # MODIFICATION START: Use X_train_for_gen_model, y_train_for_gen_model
                 ctgan_train_data_feed = pd.concat([X_train_for_gen_model, y_train_for_gen_model], axis=1)
-                discrete_columns = [col for col in ctgan_train_data_feed.columns if
-                                    len(np.unique(ctgan_train_data_feed[col])) < 10]
+                discrete_columns = [col for col in ctgan_train_data_feed.columns if len(np.unique(ctgan_train_data_feed[col])) < 10]
 
                 start_model_time = time.time()
                 ctgan_model = train_ctgan(
@@ -2499,18 +2484,18 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
                 # MODIFICATION END
 
                 if ctgan_model:
-                    ctgan_synthetic = generate_ctgan_synthetic_data(ctgan_model, ctgan_train_data_feed,
-                                                                    n_samples=n_samples)
+                    ctgan_synthetic = generate_ctgan_synthetic_data(ctgan_model, ctgan_train_data_feed, n_samples=n_samples)
                     if ctgan_synthetic is not None:
                         synthetic_data_cache[name]['models']['ctgan'] = {
-                            'data': ctgan_synthetic, 'train_time': model_train_time  # MODIFICATION: Store actual time
+                            'data': ctgan_synthetic, 'train_time': model_train_time # MODIFICATION: Store actual time
                         }
                         save_synthetic_data(ctgan_synthetic, "ctgan", name)
-                else:  # Handle case where model training failed
-                    synthetic_data_cache[name]['models']['ctgan'] = {'data': None, 'train_time': model_train_time}
+                else: # Handle case where model training failed
+                     synthetic_data_cache[name]['models']['ctgan'] = {'data': None, 'train_time': model_train_time}
             except Exception as e:
                 print(f"Error generating CTGAN synthetic data: {e}")
                 synthetic_data_cache[name]['models']['ctgan'] = {'data': None, 'train_time': model_train_time}
+
 
         # --- CTABGAN ---
         if 'ctabgan' in models and CTABGAN_AVAILABLE:
@@ -2519,9 +2504,7 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
             ctabgan_model = None
             try:
                 # MODIFICATION START: Use X_train_for_gen_model, y_train_for_gen_model
-                categorical_columns = [col for col in X_train_for_gen_model.columns if
-                                       X_train_for_gen_model[col].dtype == 'object' or len(
-                                           np.unique(X_train_for_gen_model[col])) < 10]
+                categorical_columns = [col for col in X_train_for_gen_model.columns if X_train_for_gen_model[col].dtype == 'object' or len(np.unique(X_train_for_gen_model[col])) < 10]
 
                 start_model_time = time.time()
                 ctabgan_model = train_ctabgan(
@@ -2536,15 +2519,14 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
                 if ctabgan_model:
                     # Prepare train data for synthetic data generation
                     ctabgan_train_data_feed = pd.concat([X_train_for_gen_model, y_train_for_gen_model], axis=1)
-                    ctabgan_synthetic = generate_ctabgan_synthetic_data(ctabgan_model, ctabgan_train_data_feed,
-                                                                        n_samples=n_samples)
+                    ctabgan_synthetic = generate_ctabgan_synthetic_data(ctabgan_model, ctabgan_train_data_feed, n_samples=n_samples)
                     if ctabgan_synthetic is not None:
                         synthetic_data_cache[name]['models']['ctabgan'] = {
-                            'data': ctabgan_synthetic, 'train_time': model_train_time  # MODIFICATION: Store actual time
+                            'data': ctabgan_synthetic, 'train_time': model_train_time # MODIFICATION: Store actual time
                         }
                         save_synthetic_data(ctabgan_synthetic, "ctabgan", name)
-                else:  # Handle case where model training failed
-                    synthetic_data_cache[name]['models']['ctabgan'] = {'data': None, 'train_time': model_train_time}
+                else: # Handle case where model training failed
+                     synthetic_data_cache[name]['models']['ctabgan'] = {'data': None, 'train_time': model_train_time}
             except Exception as e:
                 print(f"Error generating CTABGAN synthetic data: {e}")
                 synthetic_data_cache[name]['models']['ctabgan'] = {'data': None, 'train_time': model_train_time}
@@ -2562,19 +2544,15 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
                 # MODIFICATION END
 
                 if nb_model:
-                    nb_bic = get_gaussianNB_bic_score(nb_model,
-                                                      train_data_for_gen_model)  # Use train_data_for_gen_model for BIC
-                    nb_synthetic = generate_nb_synthetic_data(nb_model, X_train_for_gen_model, y_train_for_gen_model,
-                                                              n_samples=n_samples)
+                    nb_bic = get_gaussianNB_bic_score(nb_model, train_data_for_gen_model) # Use train_data_for_gen_model for BIC
+                    nb_synthetic = generate_nb_synthetic_data(nb_model, X_train_for_gen_model, y_train_for_gen_model, n_samples=n_samples)
                     if nb_synthetic is not None:
                         synthetic_data_cache[name]['models']['nb'] = {
-                            'data': nb_synthetic, 'bic': nb_bic, 'train_time': model_train_time
-                            # MODIFICATION: Store actual time
+                            'data': nb_synthetic, 'bic': nb_bic, 'train_time': model_train_time # MODIFICATION: Store actual time
                         }
                         save_synthetic_data(nb_synthetic, "nb", name)
-                else:  # Handle case where model training failed
-                    synthetic_data_cache[name]['models']['nb'] = {'data': None, 'bic': None,
-                                                                  'train_time': model_train_time}
+                else: # Handle case where model training failed
+                    synthetic_data_cache[name]['models']['nb'] = {'data': None, 'bic': None, 'train_time': model_train_time}
             except Exception as e:
                 print(f"Error generating Naive Bayes synthetic data: {e}")
                 synthetic_data_cache[name]['models']['nb'] = {'data': None, 'bic': None, 'train_time': model_train_time}
@@ -2587,8 +2565,7 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
             try:
                 # MODIFICATION START: Use X_train_for_gen_model, y_train_for_gen_model
                 start_model_time = time.time()
-                rlig_model = train_rlig(X_train_for_gen_model, y_train_for_gen_model, episodes=rlig_episodes,
-                                        epochs=rlig_epochs)
+                rlig_model = train_rlig(X_train_for_gen_model, y_train_for_gen_model, episodes=rlig_episodes, epochs=rlig_epochs)
                 model_train_time = time.time() - start_model_time
                 # MODIFICATION END
 
@@ -2596,26 +2573,22 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
                     rlig_bic = rlig_model.best_score if hasattr(rlig_model, 'best_score') else None
                     # MODIFICATION: generate_rlig_synthetic_data (if exists) or use rlig_model.sample
                     # For consistency, let's assume rlig_model.sample is the generation step
-                    rlig_synthetic = rlig_model.sample(n_samples)  # Generate n_samples
-                    if isinstance(rlig_synthetic, np.ndarray):  # Ensure it's a DataFrame
-                        columns = list(X_train_for_gen_model.columns) + [
-                            y_train_for_gen_model.columns[0] if isinstance(y_train_for_gen_model,
-                                                                           pd.DataFrame) else y_train_for_gen_model.name or 'target']
+                    rlig_synthetic = rlig_model.sample(n_samples) # Generate n_samples
+                    if isinstance(rlig_synthetic, np.ndarray): # Ensure it's a DataFrame
+                        columns = list(X_train_for_gen_model.columns) + [y_train_for_gen_model.columns[0] if isinstance(y_train_for_gen_model, pd.DataFrame) else y_train_for_gen_model.name or 'target']
                         rlig_synthetic = pd.DataFrame(rlig_synthetic, columns=columns)
 
                     if rlig_synthetic is not None:
                         synthetic_data_cache[name]['models']['rlig'] = {
-                            'data': rlig_synthetic, 'bic': rlig_bic, 'model': rlig_model, 'train_time': model_train_time
-                            # MODIFICATION: Store actual time
+                            'data': rlig_synthetic, 'bic': rlig_bic, 'model': rlig_model, 'train_time': model_train_time # MODIFICATION: Store actual time
                         }
                         save_synthetic_data(rlig_synthetic, "rlig", name)
-                else:  # Handle case where model training failed
-                    synthetic_data_cache[name]['models']['rlig'] = {'data': None, 'bic': None, 'model': None,
-                                                                    'train_time': model_train_time}
+                else: # Handle case where model training failed
+                    synthetic_data_cache[name]['models']['rlig'] = {'data': None, 'bic': None, 'model': None, 'train_time': model_train_time}
             except Exception as e:
                 print(f"Error generating RLiG synthetic data: {e}")
-                synthetic_data_cache[name]['models']['rlig'] = {'data': None, 'bic': None, 'model': None,
-                                                                'train_time': model_train_time}
+                synthetic_data_cache[name]['models']['rlig'] = {'data': None, 'bic': None, 'model': None, 'train_time': model_train_time}
+
 
         # --- GReaT ---
         if 'great' in models and GREAT_AVAILABLE:
@@ -2630,18 +2603,16 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
                 # X_train_great, _, y_train_great, _ = preprocess_data(X, y, discretize=DISCRETIZE_FOR_GREAT_TRAINING) # Example
 
                 start_model_time = time.time()
-                great_model = train_great(X_train_for_gen_model, y_train_for_gen_model, batch_size=great_bs,
-                                          epochs=great_epochs)
+                great_model = train_great(X_train_for_gen_model, y_train_for_gen_model, batch_size=great_bs, epochs=great_epochs)
                 model_train_time = time.time() - start_model_time
 
                 if great_model:
                     great_train_data_feed = pd.concat([X_train_for_gen_model, y_train_for_gen_model], axis=1)
-                    great_synthetic = generate_great_synthetic_data(great_model, great_train_data_feed,
-                                                                    n_samples=n_samples)
+                    great_synthetic = generate_great_synthetic_data(great_model, great_train_data_feed, n_samples=n_samples)
                     if great_synthetic is not None:
                         synthetic_data_cache[name]['models']['great'] = {
                             'data': great_synthetic,
-                            'train_time': model_train_time,  # Store actual time
+                            'train_time': model_train_time, # Store actual time
                             # 'X_test' and 'y_test' specific to GReaT if its preprocessing differs significantly for test.
                             # For now, assume common X_test, y_test from the split.
                         }
@@ -2660,20 +2631,16 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
             try:
                 # Similar to GReaT, ensure X_train_for_gen_model, y_train_for_gen_model are suitable.
                 start_model_time = time.time()
-                dist_sampl_model = train_dist_sampl(X_train_for_gen_model, y_train_for_gen_model,
-                                                    epochs=dist_sampl_epochs, random_seed=seed)
+                dist_sampl_model = train_dist_sampl(X_train_for_gen_model, y_train_for_gen_model, epochs=dist_sampl_epochs, random_seed=seed)
                 model_train_time = time.time() - start_model_time
 
                 if dist_sampl_model:
-                    dist_sampl_train_data_feed = pd.concat([X_train_for_gen_model, y_train_for_gen_model],
-                                                           axis=1)  # For context
-                    dist_sampl_synthetic = generate_dist_sampl_synthetic_data(dist_sampl_model,
-                                                                              dist_sampl_train_data_feed,
-                                                                              n_samples=n_samples)
+                    dist_sampl_train_data_feed = pd.concat([X_train_for_gen_model, y_train_for_gen_model], axis=1) # For context
+                    dist_sampl_synthetic = generate_dist_sampl_synthetic_data(dist_sampl_model, dist_sampl_train_data_feed, n_samples=n_samples)
                     if dist_sampl_synthetic is not None:
                         synthetic_data_cache[name]['models']['dist_sampl'] = {
                             'data': dist_sampl_synthetic,
-                            'train_time': model_train_time  # Store actual time
+                            'train_time': model_train_time # Store actual time
                         }
                         save_synthetic_data(dist_sampl_synthetic, "dist_sampl", name)
                 else:
@@ -2682,16 +2649,17 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
                 print(f"Error generating Distribution Sampling synthetic data: {e}")
                 synthetic_data_cache[name]['models']['dist_sampl'] = {'data': None, 'train_time': model_train_time}
 
+
         # --- TabDiff ---
         if 'tabdiff' in models and TABDIFF_AVAILABLE:
             print("\n-- Generating synthetic data for TabDiff --")
             # try:
             # Get data and preprocess based on discretization flag for TabDiff
             X_train_tabdiff, X_test_tabdiff, y_train_tabdiff, y_test_tabdiff = (
-                preprocess_data(X, y, name=name, discretize=discretize, model_name='tabdiff')
+                preprocess_data(X, y, discretize=discretize, model_name='tabdiff')
             )
-            print("Shape of X_train_tabdiff: ", X_train_tabdiff.head(), X_train_tabdiff.shape)
-            print("Shape of X_test_tabdiff: ", X_test_tabdiff.head(), X_test_tabdiff.shape)
+            print("Shape of X_train_tabdiff: ", X_train_tabdiff.shape)
+            print("Shape of X_test_tabdiff: ", X_test_tabdiff.shape)
 
             # from _utils import save_to_csv
             # # Save train data
@@ -2709,6 +2677,7 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
             info_path = f'data/{name}/info.json'
             with open(info_path, 'r') as f:
                 info = json.load(f)
+
 
             data_dir = f'data/{name}'
             print("Info loaded", info, name, data_dir)
@@ -2750,40 +2719,36 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
 
     # Configure approach based on CV and nested CV options
     if nested_cv:
-        print(f"\n\n{'=' * 20} USING {n_folds}-FOLD CROSS-VALIDATION WITHIN {n_rounds} RANDOM SEED ROUNDS {'=' * 20}\n")
+        print(f"\n\n{'='*20} USING {n_folds}-FOLD CROSS-VALIDATION WITHIN {n_rounds} RANDOM SEED ROUNDS {'='*20}\n")
     elif use_cv:
-        print(f"\n\n{'=' * 20} USING {n_folds}-FOLD CROSS-VALIDATION {'=' * 20}\n")
+        print(f"\n\n{'='*20} USING {n_folds}-FOLD CROSS-VALIDATION {'='*20}\n")
     else:
-        print(f"\n\n{'=' * 20} USING {n_rounds} ROUNDS WITH DIFFERENT RANDOM SEEDS {'=' * 20}\n")
+        print(f"\n\n{'='*20} USING {n_rounds} ROUNDS WITH DIFFERENT RANDOM SEEDS {'='*20}\n")
 
     all_rounds_results = {}
 
-    if nested_cv or use_cv:  # Combined logic for CV paths
+    if nested_cv or use_cv: # Combined logic for CV paths
         num_outer_loops = n_rounds if nested_cv else 1
         for round_idx in range(num_outer_loops):
             all_rounds_results[round_idx] = {}
             if nested_cv:
-                print(f"\n\n{'=' * 20} RANDOM SEED ROUND {round_idx + 1}/{n_rounds} {'=' * 20}\n")
+                print(f"\n\n{'='*20} RANDOM SEED ROUND {round_idx+1}/{n_rounds} {'='*20}\n")
                 round_seed = seed + round_idx
                 np.random.seed(round_seed)
                 # Potentially re-trigger synthetic data generation here if it depends on round_seed for models
                 # However, current structure generates synthetic data once.
 
             for dataset_name_eval in synthetic_data_cache.keys():
-                X_orig, y_orig = load_dataset(dataset_name_eval,
-                                              datasets[dataset_name_eval])  # Load original data for splitting
-
+                X_orig, y_orig = load_dataset(dataset_name_eval, datasets[dataset_name_eval]) # Load original data for splitting
                 if X_orig is None or y_orig is None:
                     continue
 
                 fold_results_list = []
                 for fold_idx_eval in range(n_folds):
-                    print(
-                        f"\n{'=' * 15} FOLD {fold_idx_eval + 1}/{n_folds} FOR {dataset_name_eval} (Round {round_idx + 1 if nested_cv else 1}) {'=' * 15}\n")
+                    print(f"\n{'='*15} FOLD {fold_idx_eval+1}/{n_folds} FOR {dataset_name_eval} (Round {round_idx+1 if nested_cv else 1}) {'='*15}\n")
                     # Get specific X_test, y_test for this fold
                     _, X_test_fold, _, y_test_fold = preprocess_data(
-                        X_orig, y_orig, name=dataset_name_eval, discretize=discretize, cv_fold=fold_idx_eval,
-                        n_folds=n_folds
+                        X_orig, y_orig, discretize=discretize, cv_fold=fold_idx_eval, n_folds=n_folds
                     )
                     # evaluate_models_on_fold uses synthetic_data_cache which has models trained once.
                     # It will use X_test_fold, y_test_fold for evaluation.
@@ -2793,22 +2758,22 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
                     fold_results_list.append(fold_model_results)
                 all_rounds_results[round_idx][dataset_name_eval] = average_fold_results(fold_results_list)
 
-    else:  # Traditional approach: Multiple rounds with different random seeds
+    else: # Traditional approach: Multiple rounds with different random seeds
         for round_idx in range(n_rounds):
             all_rounds_results[round_idx] = {}
             # round_results = {} # This was defined locally, use all_rounds_results[round_idx]
 
-            print(f"\n\n{'=' * 20} RANDOM SEED ROUND {round_idx + 1}/{n_rounds} {'=' * 20}\n")
+            print(f"\n\n{'='*20} RANDOM SEED ROUND {round_idx+1}/{n_rounds} {'='*20}\n")
             round_seed = seed + round_idx
             np.random.seed(round_seed)
             # Note: Synthetic data is already generated. Seed change here affects downstream classifier randomness if any.
 
-            for name_eval in synthetic_data_cache.keys():  # Changed 'name' to 'name_eval' to avoid conflict
-                print(f"\n{'=' * 50}\nEvaluating dataset: {name_eval} (Round {round_idx + 1})\n{'=' * 50}")
+            for name_eval in synthetic_data_cache.keys(): # Changed 'name' to 'name_eval' to avoid conflict
+                print(f"\n{'='*50}\nEvaluating dataset: {name_eval} (Round {round_idx+1})\n{'='*50}")
 
                 cached_data = synthetic_data_cache[name_eval]
-                X_test_trad = cached_data['X_test']  # From the initial split
-                y_test_trad = cached_data['y_test']  # From the initial split
+                X_test_trad = cached_data['X_test'] # From the initial split
+                y_test_trad = cached_data['y_test'] # From the initial split
 
                 model_results_trad = {
                     'metrics': {}, 'times': {}, 'bic_scores': {}, 'dataset_name': name_eval
@@ -2824,18 +2789,18 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
                         print(f"No synthetic data for {model_name_trad}, skipping evaluation.")
                         # Ensure metrics/times are still populated with None or defaults
                         for classifier_name_default in ['LR', 'MLP', 'RF', 'XGB', 'AVG']:
-                            metric_key_default = f"{classifier_name_default}_accuracy"
-                            if metric_key_default not in model_results_trad['metrics']:
-                                model_results_trad['metrics'][metric_key_default] = {}
-                            model_results_trad['metrics'][metric_key_default][model_name_trad] = None
+                             metric_key_default = f"{classifier_name_default}_accuracy"
+                             if metric_key_default not in model_results_trad['metrics']:
+                                 model_results_trad['metrics'][metric_key_default] = {}
+                             model_results_trad['metrics'][metric_key_default][model_name_trad] = None
                         if 'training_time' not in model_results_trad['times']:
-                            model_results_trad['times']['training_time'] = {}
-                        model_results_trad['times']['training_time'][model_name_trad] = model_cache_trad.get(
-                            'train_time', 0.0)  # Still record train time
+                             model_results_trad['times']['training_time'] = {}
+                        model_results_trad['times']['training_time'][model_name_trad] = model_cache_trad.get('train_time', 0.0) # Still record train time
                         if 'bic' not in model_results_trad['bic_scores']:
-                            model_results_trad['bic_scores']['bic'] = {}
+                             model_results_trad['bic_scores']['bic'] = {}
                         model_results_trad['bic_scores']['bic'][model_name_trad] = model_cache_trad.get('bic')
                         continue
+
 
                     # MODIFICATION START: Correctly handle time for non-CV path
                     # The 'eval_time' from evaluate_tstr is for downstream classifiers.
@@ -2856,17 +2821,15 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
                     # Special handling for RLiG's built-in evaluate if needed, or standard TSTR
                     if model_name_trad == 'rlig' and 'model' in model_cache_trad and RLIG_AVAILABLE:
                         rlig_model_eval = model_cache_trad['model']
-                        if rlig_model_eval:  # Check if model exists
-                            y_test_series_trad = y_test_trad.iloc[:, 0] if isinstance(y_test_trad, pd.DataFrame) and \
-                                                                           y_test_trad.shape[1] == 1 else y_test_trad
+                        if rlig_model_eval: # Check if model exists
+                            y_test_series_trad = y_test_trad.iloc[:, 0] if isinstance(y_test_trad, pd.DataFrame) and y_test_trad.shape[1] == 1 else y_test_trad
                             try:
                                 lr_result = rlig_model_eval.evaluate(X_test_trad, y_test_series_trad, model='lr')
                                 mlp_result = rlig_model_eval.evaluate(X_test_trad, y_test_series_trad, model='mlp')
                                 rf_result = rlig_model_eval.evaluate(X_test_trad, y_test_series_trad, model='rf')
-                                rlig_eval_results = {'LR': lr_result, 'MLP': mlp_result, 'RF': rf_result,
-                                                     'AVG': (lr_result + mlp_result + rf_result) / 3}
+                                rlig_eval_results = {'LR': lr_result, 'MLP': mlp_result, 'RF': rf_result, 'AVG': (lr_result + mlp_result + rf_result) / 3}
                                 for classifier, acc in rlig_eval_results.items():
-                                    metric_key = f"{classifier}_accuracy"  # Ensure key matches evaluate_tstr
+                                    metric_key = f"{classifier}_accuracy" # Ensure key matches evaluate_tstr
                                     if metric_key not in model_results_trad['metrics']:
                                         model_results_trad['metrics'][metric_key] = {}
                                     model_results_trad['metrics'][metric_key][model_name_trad] = acc
@@ -2874,52 +2837,44 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
                                 print(f"Error during RLiG built-in evaluation: {rlig_eval_e}")
                                 # Populate with None if RLiG eval fails
                                 for classifier_name_rl in ['LR', 'MLP', 'RF', 'AVG']:
-                                    metric_key_rl = f"{classifier_name_rl}_accuracy"
-                                    if metric_key_rl not in model_results_trad['metrics']:
-                                        model_results_trad['metrics'][metric_key_rl] = {}
-                                    model_results_trad['metrics'][metric_key_rl][model_name_trad] = None
-                        else:  # RLiG model was None
-                            for classifier_name_rl in ['LR', 'MLP', 'RF', 'AVG']:
-                                metric_key_rl = f"{classifier_name_rl}_accuracy"
-                                if metric_key_rl not in model_results_trad['metrics']:
-                                    model_results_trad['metrics'][metric_key_rl] = {}
-                                model_results_trad['metrics'][metric_key_rl][model_name_trad] = None
+                                     metric_key_rl = f"{classifier_name_rl}_accuracy"
+                                     if metric_key_rl not in model_results_trad['metrics']:
+                                         model_results_trad['metrics'][metric_key_rl] = {}
+                                     model_results_trad['metrics'][metric_key_rl][model_name_trad] = None
+                        else: # RLiG model was None
+                             for classifier_name_rl in ['LR', 'MLP', 'RF', 'AVG']:
+                                 metric_key_rl = f"{classifier_name_rl}_accuracy"
+                                 if metric_key_rl not in model_results_trad['metrics']:
+                                     model_results_trad['metrics'][metric_key_rl] = {}
+                                 model_results_trad['metrics'][metric_key_rl][model_name_trad] = None
                     else:
                         # Standard TSTR evaluation for other models
                         test_X_current = X_test_trad
                         test_y_current = y_test_trad
-                        if model_name_trad in ['great',
-                                               'dist_sampl'] and 'X_test' in model_cache_trad and 'y_test' in model_cache_trad:
-                            # This logic for model-specific test data seems less common if preprocessing is unified.
-                            # test_X_current = model_cache_trad['X_test']
-                            # test_y_current = model_cache_trad['y_test']
-                            pass  # Keep using the common X_test_trad, y_test_trad for now
+                        if model_name_trad in ['great', 'dist_sampl'] and 'X_test' in model_cache_trad and 'y_test' in model_cache_trad:
+                             # This logic for model-specific test data seems less common if preprocessing is unified.
+                             # test_X_current = model_cache_trad['X_test']
+                             # test_y_current = model_cache_trad['y_test']
+                             pass # Keep using the common X_test_trad, y_test_trad for now
 
-                        print("Before: ", synthetic_data_trad)
-                        if name_eval == "letter_recog":
-                            print("calling")
-                            tstr_eval_results = evaluate_tstr(synthetic_data_trad,
-                                                              test_X_current,
-                                                              test_y_current, target_col="lettr")
-                        else:
-                            tstr_eval_results = evaluate_tstr(synthetic_data_trad, test_X_current, test_y_current)
-                        for classifier, acc in tstr_eval_results.items():  # evaluate_tstr returns dict like {'LR': acc_lr, ...}
-                            metric_key = f"{classifier}_accuracy"  # Construct the key like 'LR_accuracy'
+                        tstr_eval_results = evaluate_tstr(synthetic_data_trad, test_X_current, test_y_current)
+                        for classifier, acc in tstr_eval_results.items(): # evaluate_tstr returns dict like {'LR': acc_lr, ...}
+                            metric_key = f"{classifier}_accuracy" # Construct the key like 'LR_accuracy'
                             if metric_key not in model_results_trad['metrics']:
                                 model_results_trad['metrics'][metric_key] = {}
                             model_results_trad['metrics'][metric_key][model_name_trad] = acc
                 all_rounds_results[round_idx][name_eval] = model_results_trad
 
+
     # Average results across all rounds/folds
     final_results = {}
-    iterations_count = n_rounds if (
-                nested_cv or not use_cv) else 1  # if use_cv and not nested_cv, it's 1 outer loop for results collection
-    if use_cv and not nested_cv:  # For plain CV, results are already averaged by average_fold_results
-        final_results = all_rounds_results[0]  # all_rounds_results[0] contains per-dataset averaged fold results
-    else:  # For nested_cv or traditional rounds, average across rounds
+    iterations_count = n_rounds if (nested_cv or not use_cv) else 1 # if use_cv and not nested_cv, it's 1 outer loop for results collection
+    if use_cv and not nested_cv: # For plain CV, results are already averaged by average_fold_results
+        final_results = all_rounds_results[0] # all_rounds_results[0] contains per-dataset averaged fold results
+    else: # For nested_cv or traditional rounds, average across rounds
         for dataset_name_avg in datasets.keys():
             if not any(dataset_name_avg in all_rounds_results[r] for r in all_rounds_results):
-                continue  # Skip if dataset wasn't processed in any round
+                continue # Skip if dataset wasn't processed in any round
 
             final_results[dataset_name_avg] = {
                 'metrics': {}, 'times': {}, 'bic_scores': {}, 'dataset_name': dataset_name_avg
@@ -2927,7 +2882,7 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
             metric_accumulators = {}
             time_accumulators = {}
             bic_accumulators = {}
-            valid_round_counts = {}  # Per metric/time/bic type
+            valid_round_counts = {} # Per metric/time/bic type
 
             for round_idx_avg in range(iterations_count):
                 if dataset_name_avg not in all_rounds_results.get(round_idx_avg, {}):
@@ -2940,47 +2895,38 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
                     if metric_key not in valid_round_counts: valid_round_counts[metric_key] = {}
                     for model_n, val in model_metrics.items():
                         if val is not None:
-                            metric_accumulators[metric_key][model_n] = metric_accumulators[metric_key].get(model_n,
-                                                                                                           0) + val
+                            metric_accumulators[metric_key][model_n] = metric_accumulators[metric_key].get(model_n, 0) + val
                             valid_round_counts[metric_key][model_n] = valid_round_counts[metric_key].get(model_n, 0) + 1
                 # Accumulate Times
-                for time_category, model_times in round_data.get('times',
-                                                                 {}).items():  # e.g., time_category is 'training_time'
+                for time_category, model_times in round_data.get('times', {}).items(): # e.g., time_category is 'training_time'
                     if time_category not in time_accumulators: time_accumulators[time_category] = {}
                     if time_category not in valid_round_counts: valid_round_counts[time_category] = {}
                     for model_n, val in model_times.items():
                         if val is not None:
-                            time_accumulators[time_category][model_n] = time_accumulators[time_category].get(model_n,
-                                                                                                             0) + val
-                            valid_round_counts[time_category][model_n] = valid_round_counts[time_category].get(model_n,
-                                                                                                               0) + 1
+                            time_accumulators[time_category][model_n] = time_accumulators[time_category].get(model_n, 0) + val
+                            valid_round_counts[time_category][model_n] = valid_round_counts[time_category].get(model_n, 0) + 1
                 # Accumulate BIC
-                for bic_category, model_bics in round_data.get('bic_scores', {}).items():  # e.g., bic_category is 'bic'
+                for bic_category, model_bics in round_data.get('bic_scores', {}).items(): # e.g., bic_category is 'bic'
                     if bic_category not in bic_accumulators: bic_accumulators[bic_category] = {}
                     if bic_category not in valid_round_counts: valid_round_counts[bic_category] = {}
                     for model_n, val in model_bics.items():
                         if val is not None:
-                            bic_accumulators[bic_category][model_n] = bic_accumulators[bic_category].get(model_n,
-                                                                                                         0) + val
-                            valid_round_counts[bic_category][model_n] = valid_round_counts[bic_category].get(model_n,
-                                                                                                             0) + 1
+                            bic_accumulators[bic_category][model_n] = bic_accumulators[bic_category].get(model_n, 0) + val
+                            valid_round_counts[bic_category][model_n] = valid_round_counts[bic_category].get(model_n, 0) + 1
 
             # Calculate Averages
             for m_key, models_data in metric_accumulators.items():
-                if m_key not in final_results[dataset_name_avg]['metrics']: final_results[dataset_name_avg]['metrics'][
-                    m_key] = {}
+                if m_key not in final_results[dataset_name_avg]['metrics']: final_results[dataset_name_avg]['metrics'][m_key] = {}
                 for mdl, total_val in models_data.items():
                     count = valid_round_counts.get(m_key, {}).get(mdl, 1)
                     final_results[dataset_name_avg]['metrics'][m_key][mdl] = total_val / count if count > 0 else None
             for t_cat, models_data in time_accumulators.items():
-                if t_cat not in final_results[dataset_name_avg]['times']: final_results[dataset_name_avg]['times'][
-                    t_cat] = {}
+                if t_cat not in final_results[dataset_name_avg]['times']: final_results[dataset_name_avg]['times'][t_cat] = {}
                 for mdl, total_val in models_data.items():
                     count = valid_round_counts.get(t_cat, {}).get(mdl, 1)
                     final_results[dataset_name_avg]['times'][t_cat][mdl] = total_val / count if count > 0 else 0.0
             for b_cat, models_data in bic_accumulators.items():
-                if b_cat not in final_results[dataset_name_avg]['bic_scores']:
-                    final_results[dataset_name_avg]['bic_scores'][b_cat] = {}
+                if b_cat not in final_results[dataset_name_avg]['bic_scores']: final_results[dataset_name_avg]['bic_scores'][b_cat] = {}
                 for mdl, total_val in models_data.items():
                     count = valid_round_counts.get(b_cat, {}).get(mdl, 1)
                     final_results[dataset_name_avg]['bic_scores'][b_cat][mdl] = total_val / count if count > 0 else None
@@ -2989,7 +2935,7 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
         print(f"\nAveraged results across {n_rounds} random seed rounds with {n_folds}-fold cross-validation in each")
     elif use_cv:
         print(f"\nAveraged results across {n_folds} cross-validation folds")
-    else:  # Traditional rounds
+    else: # Traditional rounds
         print(f"\nAveraged results across {n_rounds} random seed rounds")
     return final_results
 
@@ -3001,47 +2947,47 @@ def format_results(results):
     # Define expected models and metric types for consistent column ordering
     models = ['ganblr++', 'ganblr', 'ctgan', 'ctabgan', 'nb', 'rlig', 'great', 'dist_sampl']
     metric_types = ['LR', 'MLP', 'RF', 'XGB', 'AVG']
-
+    
     # Initialize results dictionaries
     accuracy_results = {}
     time_results = {}
     bic_results = {}
-
+    
     for dataset, data in results.items():
         # Process metrics - format as MODEL-METRIC_TYPE
         metrics_dict = {}
-
+        
         for metric_key, metric_value in data['metrics'].items():
             if isinstance(metric_value, dict):
                 # Extract classifier type (LR, MLP, RF, XGB, AVG) from the metric key
                 if '_accuracy' in metric_key:
                     classifier_type = metric_key.split('_')[0]
-
+                    
                     # Process each model's results for this classifier
                     for model_name, model_value in metric_value.items():
                         # Convert model name to uppercase for consistency
                         model_upper = model_name.upper()
                         if model_name.lower() == 'ganblr++':
                             model_upper = 'GANBLR++'
-
+                            
                         # Create column in format "MODEL-METRIC_TYPE"
                         col_name = f"{model_upper}-{classifier_type}"
                         metrics_dict[col_name] = model_value
-
+        
         accuracy_results[dataset] = metrics_dict
-
+        
         # Process times - directly use the times from data
         times_dict = {}
-
+        
         # Time data extraction from the results structure
-
+        
         # First, look for directly stored time values (non-nested, like RLIG, NB, etc.)
         # These are stored with uppercase model names as keys, like in eval_tstr_final.py
         for time_key, time_value in data['times'].items():
             if not isinstance(time_value, dict):
                 # This is for models where time is stored directly with model name as key
                 times_dict[time_key] = time_value
-
+                
         # Now check for any values in the nested 'training_time' structure
         if 'training_time' in data['times'] and isinstance(data['times']['training_time'], dict):
             for model_name, time_value in data['times']['training_time'].items():
@@ -3049,13 +2995,13 @@ def format_results(results):
                 model_upper = model_name.upper()
                 if model_name.lower() == 'ganblr++':
                     model_upper = 'GANBLR++'
-
+                
                 # If the model doesn't already have a time entry, add it
                 if model_upper not in times_dict:
                     times_dict[model_upper] = time_value
-
+                
         time_results[dataset] = times_dict
-
+        
         # Process BIC scores - keeping the same format
         bic_dict = {}
         for bic_key, bic_value in data['bic_scores'].items():
@@ -3070,12 +3016,12 @@ def format_results(results):
             else:
                 bic_dict[bic_key] = bic_value
         bic_results[dataset] = bic_dict
-
+    
     # Create DataFrames from the dictionaries
     accuracy_df = pd.DataFrame.from_dict(accuracy_results, orient='index')
     time_df = pd.DataFrame.from_dict(time_results, orient='index')
     bic_df = pd.DataFrame.from_dict(bic_results, orient='index')
-
+    
     # Sort columns to match the requested order
     def sort_columns(df):
         # Define a custom sorting key
@@ -3087,27 +3033,27 @@ def format_results(results):
                     model_idx = [m.upper() for m in models].index(model)
                 except ValueError:
                     model_idx = len(models)  # Place unknown models at the end
-
+                
                 try:
                     metric_idx = metric_types.index(metric)
                 except ValueError:
                     metric_idx = len(metric_types)  # Place unknown metrics at the end
-
+                
                 return (model_idx, metric_idx)
             else:
                 return (len(models), len(metric_types))  # Other columns at the end
-
+        
         # Sort columns based on the custom key
         if not df.empty:
             sorted_cols = sorted(df.columns, key=sort_key)
             return df[sorted_cols]
         return df
-
+    
     # Apply sorting to all DataFrames
     accuracy_df = sort_columns(accuracy_df)
     time_df = sort_columns(time_df)
     bic_df = sort_columns(bic_df)
-
+    
     return {
         'accuracy': accuracy_df,
         'time': time_df,
@@ -3129,7 +3075,7 @@ def save_results_to_csv(results_dict, prefix="tstr"):
         directory = "results"
         basename = prefix
         os.makedirs(directory, exist_ok=True)
-
+    
     for result_type, df in results_dict.items():
         filename = f"{directory}/{basename}_{result_type}_results.csv"
         df.to_csv(filename)
@@ -3147,7 +3093,7 @@ def parse_args():
         description="TSTR (Train on Synthetic, Test on Real) Evaluation Framework for generative models",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-
+    
     print("\nTSTR Evaluation Framework for Generative Models")
     print("===============================================")
     print("Models supported: RLiG, GANBLR, GANBLR++, CTGAN, Naive Bayes, GReaT, Distribution Sampling")
@@ -3156,12 +3102,12 @@ def parse_args():
     print("\nDiscretization control:")
     print("  --discretize       Apply discretization to continuous features (default)")
     print("  --no-discretize    Do not apply discretization to continuous features")
-
+    
     # Model selection arguments
     parser.add_argument(
-        "--models",
-        type=str,
-        nargs="+",
+        "--models", 
+        type=str, 
+        nargs="+", 
         default=['rlig', 'ganblr', 'ganblr++', 'ctgan', 'ctabgan', 'nb', 'great', 'dist_sampl', 'tabdiff'],
         help="List of models to evaluate. Options: rlig, ganblr, ganblr++, ctgan, ctabgan, nb, great, dist_sampl, tab_diff"
     )
@@ -3178,74 +3124,80 @@ def parse_args():
     Room_Occupancy: 864
     Car: 19
     Maternal_Health: 863
+    TicTocToe: 101
     Loan & Credit: from local directory
     """
-
+    
     # Dataset selection arguments
     parser.add_argument(
         "--datasets",
         type=str,
         nargs="+",
-        default=['Adult', 'Car', 'Chess', 'Connect-4', 'Default',
-                 'letter_recog', 'Magic', 'Maternal_Health', 'Nursery', 'Rice',
-                 'Room_Occupancy'],
+        default=['Rice', 'TicTacToe', 'PokerHand', 'Connect-4', 'Credit',
+                 'Adult', 'Chess', 'LetterRecog', 'Magic', 'Nursery', 'RoomOccupancy',
+                 'Car', 'MaternalHealth'],
         help="List of dataset names to evaluate"
     )
-
+    
     # Add UCI dataset IDs
     parser.add_argument(
         "--uci_ids",
         type=int,
         nargs="+",
         default=[
-            2,                # Adult
-            19,               # Car   --- generate nan in tabdiff --> skip
-            22,               # Chess
+            545,              # Rice
+            101,              # TicTocToe
+            158,              # PokerHand
             26,               # Connect-4
             350,              # Default/Credit
+            2,                # Adult
+            22,               # Chess
             59,               # Letter Recognition
             159,              # Magic
-            863,              # Maternal Health
             76,               # Nursery
-            545,              # Rice
-            864               # Room Occupancy
+           864,                 # Room Occupancy
+            19,               # Car   --- generate nan in tabdiff --> skip
+            863,              # Maternal Health
+
         ],
+        # default=[545, 101, 158, 26, 27, 2, 22, 59, 159, 76, 864, 19, 863],  # Default: Rice and TicTacToe
+        # default=[2],
         # default=[545, 101, 158, 26, 27, 2, 22, 59, 159, 76, 864, 19, 863],  # Default: Rice and TicTacToe
         help="List of UCI dataset IDs to use"
     )
-
+    
     # Add local dataset paths
     parser.add_argument(
-        "--local_datasets",
-        type=str,
-        nargs="+",
+        "--local_datasets", 
+        type=str, 
+        nargs="+", 
         default=['data/loan_approval_dataset.csv', 'data/UCI_Credit_Card.csv'],
         help="List of paths to local dataset files (.arff or .csv)"
     )
-
+    
     # Evaluation parameters
     parser.add_argument(
-        "--n_rounds",
-        type=int,
+        "--n_rounds", 
+        type=int, 
         default=3,
         help="Number of evaluation rounds for robust results"
     )
-
+    
     parser.add_argument(
-        "--seed",
-        type=int,
+        "--seed", 
+        type=int, 
         default=42,
         help="Random seed for reproducibility"
     )
-
+    
     # Output options
     parser.add_argument(
-        "--output_prefix",
-        type=str,
+        "--output_prefix", 
+        type=str, 
         default="disc_tstr",
         help="Prefix for output CSV files (default: disc_tstr for discretized results)"
     )
-
+    
     # Discretization control
     parser.add_argument(
         "--discretize",
@@ -3253,14 +3205,14 @@ def parse_args():
         default=True,
         help="Apply discretization to continuous features"
     )
-
+    
     parser.add_argument(
         "--no-discretize",
         action="store_false",
         dest="discretize",
         help="Do not apply discretization to continuous features"
     )
-
+    
     # Cross-validation control
     parser.add_argument(
         "--use-cv",
@@ -3268,45 +3220,45 @@ def parse_args():
         default=False,
         help="Use k-fold cross-validation instead of random seed rounds"
     )
-
+    
     parser.add_argument(
         "--nested-cv",
         action="store_true",
         default=False,
         help="Use k-fold cross-validation within each random seed round"
     )
-
+    
     parser.add_argument(
         "--n-folds",
         type=int,
         default=2,
         help="Number of folds for cross-validation (default: 2)"
     )
-
+    
     # Additional model parameters
     parser.add_argument(
-        "--ctgan_epochs",
-        type=int,
-        default=50,
+        "--ctgan_epochs", 
+        type=int, 
+        default=10,
         help="Number of epochs for CTGAN training"
     )
-
+    
     parser.add_argument(
-        "--small_ctgan",
+        "--small_ctgan", 
         action="store_true",
         help="Use fewer epochs (10) for CTGAN and CTABGAN to speed up training"
     )
-
+    
     parser.add_argument(
-        "--rlig_episodes",
-        type=int,
+        "--rlig_episodes", 
+        type=int, 
         default=2,
         help="Number of episodes for RLiG training"
     )
-
+    
     parser.add_argument(
-        "--rlig_epochs",
-        type=int,
+        "--rlig_epochs", 
+        type=int, 
         default=5,
         help="Number of epochs for RLiG training"
     )
@@ -3314,46 +3266,45 @@ def parse_args():
     parser.add_argument(
         "--great_bs",
         type=int,
-        default=1,
+        default=32,
         help="Number of batch size for GReaT training"
     )
 
     parser.add_argument(
         "--great_epochs",
         type=int,
-        default=1,
+        default=2,
         help="Number of epochs for GReaT training"
     )
-
+    
     parser.add_argument(
         "--dist_sampl_epochs",
         type=int,
         default=50,
         help="Number of epochs for Distribution Sampling training"
     )
-
+    
     # Verbose mode
     parser.add_argument(
-        "--verbose",
+        "--verbose", 
         action="store_true",
         help="Enable verbose output"
     )
-
+    
     return parser.parse_args()
-
 
 # ============= MAIN EXECUTION =============
 
 if __name__ == "__main__":
     # Parse command line arguments
     args = parse_args()
-
+    
     # Display discretization status
     print(f"\nRunning with discretization: {'ENABLED' if args.discretize else 'DISABLED'}")
-
+    
     # Set up datasets dictionary based on provided arguments
     datasets = {}
-
+    
     # Add UCI datasets using IDs
     if UCI_AVAILABLE:
         for i, dataset_id in enumerate(args.uci_ids):
@@ -3362,7 +3313,7 @@ if __name__ == "__main__":
             else:
                 # Create a generic name if not enough names provided
                 datasets[f"UCI_{dataset_id}"] = dataset_id
-
+    
     # Add local datasets
     for i, dataset_path in enumerate(args.local_datasets):
         # Calculate the appropriate index for naming
@@ -3374,7 +3325,7 @@ if __name__ == "__main__":
             # Extract filename as dataset name if not enough names provided
             dataset_name = os.path.splitext(os.path.basename(dataset_path))[0]
             datasets[dataset_name] = dataset_path
-
+    
     # Limit to requested datasets if both lists were provided
     if len(args.datasets) < len(datasets):
         datasets = {k: datasets[k] for k in args.datasets if k in datasets}
@@ -3383,7 +3334,7 @@ if __name__ == "__main__":
     if args.small_ctgan:
         args.ctgan_epochs = 10
         print(f"Note: Using reduced CTGAN/CTABGAN epochs ({args.ctgan_epochs}) for faster training")
-
+    
     # Run the TSTR comparison with specified models and parameters
     results = compare_models_tstr(
         datasets,
@@ -3402,27 +3353,27 @@ if __name__ == "__main__":
         n_folds=args.n_folds,
         nested_cv=args.nested_cv
     )
-
+    
     # Format and display results
     formatted_results = format_results(results)
-
+    
     print("\n\n=== TSTR ACCURACY RESULTS ===")
     print(formatted_results['accuracy'])
     print("\n\n=== TIME RESULTS (seconds) ===")
     print(formatted_results['time'])
     print("\n\n=== BIC SCORE RESULTS ===")
     print(formatted_results['bic'])
-
+    
     # Save results to CSV
     try:
         # Simple prefix, just distinguish between discretized and raw
         output_prefix = "disc_tstr" if args.discretize else "raw_tstr"
-
+        
         # Create timestamp-based directory for results
         timestamp = time.strftime("%Y%m%d_%H%M%S")
         result_dir = f"results/{timestamp}"
         os.makedirs(result_dir, exist_ok=True)
-
+        
         # Save only the essential results files (accuracy, time, bic) without redundancy
         save_results_to_csv(formatted_results, prefix=f"{result_dir}/{output_prefix}")
         print(f"\nResults saved to CSV files in directory '{result_dir}' with prefix '{output_prefix}'.")
