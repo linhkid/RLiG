@@ -1,0 +1,21 @@
+{
+    "name": "car",
+    "task_type": "binclass",
+    "header": null,
+    "column_names": [
+      "buying",
+      "maint",
+      "doors",
+      "persons",
+      "lug_boot",
+      "safety",
+      "class"
+    ],
+    "num_col_idx": [],
+    "cat_col_idx": [],
+    "target_col_idx": [6],
+    "file_type": "csv",
+    "data_path": "data/car/car.data",
+    "test_path": null,
+    "val_path": null,
+}

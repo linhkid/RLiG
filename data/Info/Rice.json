@@ -1,0 +1,144 @@
+{
+    "name": "Rice",
+    "task_type": "binclass",
+    "header": 0,
+    "column_names": [
+        "Area",
+        "Perimeter",
+        "Major_Axis_Length",
+        "Minor_Axis_Length",
+        "Eccentricity",
+        "Convex_Area",
+        "Extent",
+        "Class"
+    ],
+    "num_col_idx": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+    ],
+    "cat_col_idx": [],
+    "target_col_idx": [
+        7
+    ],
+    "file_type": "csv",
+    "data_path": "data/Rice/train.csv",
+    "val_path": null,
+    "test_path": "data/Rice/test.csv",
+    "column_info": {
+        "0": {},
+        "type": "categorical",
+        "max": 4.0,
+        "min": 0.0,
+        "1": {},
+        "2": {},
+        "3": {},
+        "4": {},
+        "5": {},
+        "6": {},
+        "7": {},
+        "categorizes": [
+            0,
+            1
+        ]
+    },
+    "train_num": 3048,
+    "test_num": 762,
+    "int_col_idx": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+    ],
+    "int_columns": [
+        "Area",
+        "Perimeter",
+        "Major_Axis_Length",
+        "Minor_Axis_Length",
+        "Eccentricity",
+        "Convex_Area",
+        "Extent"
+    ],
+    "int_col_idx_wrt_num": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+    ],
+    "val_num": 0,
+    "idx_mapping": {
+        "0": 0,
+        "1": 1,
+        "2": 2,
+        "3": 3,
+        "4": 4,
+        "5": 5,
+        "6": 6,
+        "7": 7
+    },
+    "inverse_idx_mapping": {
+        "0": 0,
+        "1": 1,
+        "2": 2,
+        "3": 3,
+        "4": 4,
+        "5": 5,
+        "6": 6,
+        "7": 7
+    },
+    "idx_name_mapping": {
+        "0": "Area",
+        "1": "Perimeter",
+        "2": "Major_Axis_Length",
+        "3": "Minor_Axis_Length",
+        "4": "Eccentricity",
+        "5": "Convex_Area",
+        "6": "Extent",
+        "7": "Class"
+    },
+    "metadata": {
+        "columns": {
+            "0": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "1": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "2": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "3": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "4": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "5": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "6": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "7": {
+                "sdtype": "categorical"
+            }
+        }
+    }
+}
