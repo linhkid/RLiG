@@ -1,0 +1,364 @@
+{
+    "name": "chess_king_rook_vs_king_pawn",
+    "task_type": "binclass",
+    "header": null,
+    "column_names": [
+        "bkblk",
+        "bknwy",
+        "bkon8",
+        "bkona",
+        "bkspr",
+        "bkxbq",
+        "bkxcr",
+        "bkxwp",
+        "blxwp",
+        "bxqsq",
+        "cntxt",
+        "dsopp",
+        "dwipd",
+        "hdchk",
+        "katri",
+        "mulch",
+        "qxmsq",
+        "r2ar8",
+        "reskd",
+        "reskr",
+        "rimmx",
+        "rkxwp",
+        "rxmsq",
+        "simpl",
+        "skach",
+        "skewr",
+        "skrxp",
+        "spcop",
+        "stlmt",
+        "thrsk",
+        "wkcti",
+        "wkna8",
+        "wknck",
+        "wkovl",
+        "wkpos",
+        "class"
+    ],
+    "num_col_idx": [],
+    "cat_col_idx": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34
+    ],
+    "target_col_idx": [
+        35
+    ],
+    "file_type": "csv",
+    "data_path": "data/chess/train.csv",
+    "test_path": "data/chess/test.csv",
+    "val_path": null,
+    "int_col_idx": [],
+    "int_columns": [],
+    "int_col_idx_wrt_num": [],
+    "column_info": {
+        "0": {},
+        "type": "categorical",
+        "categorizes": [
+            "0",
+            "target",
+            "1"
+        ],
+        "1": {},
+        "2": {},
+        "3": {},
+        "4": {},
+        "5": {},
+        "6": {},
+        "7": {},
+        "8": {},
+        "9": {},
+        "10": {},
+        "11": {},
+        "12": {},
+        "13": {},
+        "14": {},
+        "15": {},
+        "16": {},
+        "17": {},
+        "18": {},
+        "19": {},
+        "20": {},
+        "21": {},
+        "22": {},
+        "23": {},
+        "24": {},
+        "25": {},
+        "26": {},
+        "27": {},
+        "28": {},
+        "29": {},
+        "30": {},
+        "31": {},
+        "32": {},
+        "33": {},
+        "34": {},
+        "35": {}
+    },
+    "train_num": 2557,
+    "test_num": 641,
+    "val_num": 0,
+    "idx_mapping": {
+        "0": 0,
+        "1": 1,
+        "2": 2,
+        "3": 3,
+        "4": 4,
+        "5": 5,
+        "6": 6,
+        "7": 7,
+        "8": 8,
+        "9": 9,
+        "10": 10,
+        "11": 11,
+        "12": 12,
+        "13": 13,
+        "14": 14,
+        "15": 15,
+        "16": 16,
+        "17": 17,
+        "18": 18,
+        "19": 19,
+        "20": 20,
+        "21": 21,
+        "22": 22,
+        "23": 23,
+        "24": 24,
+        "25": 25,
+        "26": 26,
+        "27": 27,
+        "28": 28,
+        "29": 29,
+        "30": 30,
+        "31": 31,
+        "32": 32,
+        "33": 33,
+        "34": 34,
+        "35": 35
+    },
+    "inverse_idx_mapping": {
+        "0": 0,
+        "1": 1,
+        "2": 2,
+        "3": 3,
+        "4": 4,
+        "5": 5,
+        "6": 6,
+        "7": 7,
+        "8": 8,
+        "9": 9,
+        "10": 10,
+        "11": 11,
+        "12": 12,
+        "13": 13,
+        "14": 14,
+        "15": 15,
+        "16": 16,
+        "17": 17,
+        "18": 18,
+        "19": 19,
+        "20": 20,
+        "21": 21,
+        "22": 22,
+        "23": 23,
+        "24": 24,
+        "25": 25,
+        "26": 26,
+        "27": 27,
+        "28": 28,
+        "29": 29,
+        "30": 30,
+        "31": 31,
+        "32": 32,
+        "33": 33,
+        "34": 34,
+        "35": 35
+    },
+    "idx_name_mapping": {
+        "0": "bkblk",
+        "1": "bknwy",
+        "2": "bkon8",
+        "3": "bkona",
+        "4": "bkspr",
+        "5": "bkxbq",
+        "6": "bkxcr",
+        "7": "bkxwp",
+        "8": "blxwp",
+        "9": "bxqsq",
+        "10": "cntxt",
+        "11": "dsopp",
+        "12": "dwipd",
+        "13": "hdchk",
+        "14": "katri",
+        "15": "mulch",
+        "16": "qxmsq",
+        "17": "r2ar8",
+        "18": "reskd",
+        "19": "reskr",
+        "20": "rimmx",
+        "21": "rkxwp",
+        "22": "rxmsq",
+        "23": "simpl",
+        "24": "skach",
+        "25": "skewr",
+        "26": "skrxp",
+        "27": "spcop",
+        "28": "stlmt",
+        "29": "thrsk",
+        "30": "wkcti",
+        "31": "wkna8",
+        "32": "wknck",
+        "33": "wkovl",
+        "34": "wkpos",
+        "35": "class"
+    },
+    "metadata": {
+        "columns": {
+            "0": {
+                "sdtype": "categorical"
+            },
+            "1": {
+                "sdtype": "categorical"
+            },
+            "2": {
+                "sdtype": "categorical"
+            },
+            "3": {
+                "sdtype": "categorical"
+            },
+            "4": {
+                "sdtype": "categorical"
+            },
+            "5": {
+                "sdtype": "categorical"
+            },
+            "6": {
+                "sdtype": "categorical"
+            },
+            "7": {
+                "sdtype": "categorical"
+            },
+            "8": {
+                "sdtype": "categorical"
+            },
+            "9": {
+                "sdtype": "categorical"
+            },
+            "10": {
+                "sdtype": "categorical"
+            },
+            "11": {
+                "sdtype": "categorical"
+            },
+            "12": {
+                "sdtype": "categorical"
+            },
+            "13": {
+                "sdtype": "categorical"
+            },
+            "14": {
+                "sdtype": "categorical"
+            },
+            "15": {
+                "sdtype": "categorical"
+            },
+            "16": {
+                "sdtype": "categorical"
+            },
+            "17": {
+                "sdtype": "categorical"
+            },
+            "18": {
+                "sdtype": "categorical"
+            },
+            "19": {
+                "sdtype": "categorical"
+            },
+            "20": {
+                "sdtype": "categorical"
+            },
+            "21": {
+                "sdtype": "categorical"
+            },
+            "22": {
+                "sdtype": "categorical"
+            },
+            "23": {
+                "sdtype": "categorical"
+            },
+            "24": {
+                "sdtype": "categorical"
+            },
+            "25": {
+                "sdtype": "categorical"
+            },
+            "26": {
+                "sdtype": "categorical"
+            },
+            "27": {
+                "sdtype": "categorical"
+            },
+            "28": {
+                "sdtype": "categorical"
+            },
+            "29": {
+                "sdtype": "categorical"
+            },
+            "30": {
+                "sdtype": "categorical"
+            },
+            "31": {
+                "sdtype": "categorical"
+            },
+            "32": {
+                "sdtype": "categorical"
+            },
+            "33": {
+                "sdtype": "categorical"
+            },
+            "34": {
+                "sdtype": "categorical"
+            },
+            "35": {
+                "sdtype": "categorical"
+            }
+        }
+    }
+}

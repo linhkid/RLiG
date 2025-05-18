@@ -1,0 +1,33 @@
+{
+    "name": "room_occupancy",
+    "task_type": "regression",
+    "header": "infer",
+    "column_names": [
+        "Date",
+        "Time",
+        "S1_Temp",
+        "S2_Temp",
+        "S3_Temp",
+        "S4_Temp",
+        "S1_Light",
+        "S2_Light",
+        "S3_Light",
+        "S4_Light",
+        "S1_Sound",
+        "S2_Sound",
+        "S3_Sound",
+        "S4_Sound",
+        "S5_CO2",
+        "S5_CO2_Slope",
+        "S6_PIR",
+        "S7_PIR",
+        "Room_Occupancy_Count"
+    ],
+    "num_col_idx": [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    "cat_col_idx": [0, 1, 16, 17],
+    "target_col_idx": [18],
+    "file_type": "csv",
+    "data_path": "data/room_occupancy/train.csv",
+    "test_path": "data/room_occupancy/test.csv",
+    "val_path": null
+}

@@ -1,0 +1,132 @@
+{
+    "name": "maternal_health",
+    "task_type": "binclass",
+    "header": "infer",
+    "column_names": [
+        "Age",
+        "SystolicBP",
+        "DiastolicBP",
+        "BS",
+        "BodyTemp",
+        "HeartRate",
+        "RiskLevel"
+    ],
+    "num_col_idx": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+    ],
+    "cat_col_idx": [],
+    "target_col_idx": [
+        6
+    ],
+    "file_type": "csv",
+    "data_path": "data/maternal_health/train.csv",
+    "test_path": "data/maternal_health/test.csv",
+    "val_path": null,
+    "int_col_idx": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+    ],
+    "int_columns": [
+        "Age",
+        "SystolicBP",
+        "DiastolicBP",
+        "BS",
+        "BodyTemp",
+        "HeartRate"
+    ],
+    "int_col_idx_wrt_num": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+    ],
+    "column_info": {
+        "0": {},
+        "type": "categorical",
+        "max": 4.0,
+        "min": 0.0,
+        "1": {},
+        "2": {},
+        "3": {},
+        "4": {},
+        "5": {},
+        "6": {},
+        "categorizes": [
+            0,
+            1,
+            2
+        ]
+    },
+    "train_num": 811,
+    "test_num": 203,
+    "val_num": 0,
+    "idx_mapping": {
+        "0": 0,
+        "1": 1,
+        "2": 2,
+        "3": 3,
+        "4": 4,
+        "5": 5,
+        "6": 6
+    },
+    "inverse_idx_mapping": {
+        "0": 0,
+        "1": 1,
+        "2": 2,
+        "3": 3,
+        "4": 4,
+        "5": 5,
+        "6": 6
+    },
+    "idx_name_mapping": {
+        "0": "Age",
+        "1": "SystolicBP",
+        "2": "DiastolicBP",
+        "3": "BS",
+        "4": "BodyTemp",
+        "5": "HeartRate",
+        "6": "RiskLevel"
+    },
+    "metadata": {
+        "columns": {
+            "0": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "1": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "2": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "3": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "4": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "5": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "6": {
+                "sdtype": "categorical"
+            }
+        }
+    }
+}

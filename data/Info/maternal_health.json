@@ -1,0 +1,30 @@
+{
+  "name": "maternal_health",
+  "task_type": "binclass",
+  "header": "infer",
+  "column_names": [
+    "Age",
+    "SystolicBP",
+    "DiastolicBP",
+    "BS",
+    "BodyTemp",
+    "HeartRate",
+    "RiskLevel"
+  ],
+  "num_col_idx": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5
+  ],
+  "cat_col_idx": [],
+  "target_col_idx": [
+    6
+  ],
+  "file_type": "csv",
+  "data_path": "data/maternal_health/train.csv",
+  "test_path": "data/maternal_health/test.csv",
+  "val_path": null
+}

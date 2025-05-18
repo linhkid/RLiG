@@ -1,14 +1,50 @@
 {
-    "name": "chess",
-    "task_type": "binclass", # binclass or regression
+    "name": "chess_king_rook_vs_king_pawn",
+    "task_type": "binclass",
     "header": null,
     "column_names": [
-
+        "bkblk",
+        "bknwy",
+        "bkon8",
+        "bkona",
+        "bkspr",
+        "bkxbq",
+        "bkxcr",
+        "bkxwp",
+        "blxwp",
+        "bxqsq",
+        "cntxt",
+        "dsopp",
+        "dwipd",
+        "hdchk",
+        "katri",
+        "mulch",
+        "qxmsq",
+        "r2ar8",
+        "reskd",
+        "reskr",
+        "rimmx",
+        "rkxwp",
+        "rxmsq",
+        "simpl",
+        "skach",
+        "skewr",
+        "skrxp",
+        "spcop",
+        "stlmt",
+        "thrsk",
+        "wkcti",
+        "wkna8",
+        "wknck",
+        "wkovl",
+        "wkpos",
+        "class"
     ],
-    "num_col_idx": [LIST],  # list of indices of numerical columns
-    "cat_col_idx": [LIST],  # list of indices of categorical columns
-    "target_col_idx": [list], # list of indices of the target columns (for MLE)
+    "num_col_idx": [],
+    "cat_col_idx": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34],
+    "target_col_idx": [35],
     "file_type": "csv",
-    "data_path": "data/<NAME_OF_YOUR_DATASET>/<NAME_OF_YOUR_DATASET>.csv"
-    "test_path": null,
+    "data_path": "data/chess/train.csv",
+    "test_path": "data/chess/test.csv",
+    "val_path": null
 }
