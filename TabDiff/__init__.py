@@ -1,1 +1,0 @@
-from .tabdiff_wrapper import run_tabdiff

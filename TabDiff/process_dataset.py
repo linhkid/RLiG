@@ -667,6 +667,7 @@ if __name__ == "__main__":
             'room_occupancy',
             'car',
             'maternal_health'
-            'Rice'
+            'Rice',
+            'nsl-kdd'
         ]:
             process_data(name)

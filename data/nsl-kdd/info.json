@@ -1,0 +1,559 @@
+{
+    "name": "nsl-kdd",
+    "task_type": "binclass",
+    "header": "infer",
+    "column_names": [
+        "duration",
+        "src_bytes",
+        "dst_bytes",
+        "wrong_fragment",
+        "urgent",
+        "hot",
+        "num_failed_logins",
+        "num_compromised",
+        "root_shell",
+        "su_attempted",
+        "num_root",
+        "num_file_creations",
+        "num_shells",
+        "num_access_files",
+        "num_outbound_cmds",
+        "count",
+        "srv_count",
+        "serror_rate",
+        "srv_serror_rate",
+        "rerror_rate",
+        "srv_rerror_rate",
+        "same_srv_rate",
+        "diff_srv_rate",
+        "srv_diff_host_rate",
+        "dst_host_count",
+        "dst_host_srv_count",
+        "dst_host_same_srv_rate",
+        "dst_host_diff_srv_rate",
+        "dst_host_same_src_port_rate",
+        "dst_host_srv_diff_host_rate",
+        "dst_host_serror_rate",
+        "dst_host_srv_serror_rate",
+        "dst_host_rerror_rate",
+        "dst_host_srv_rerror_rate",
+        "land",
+        "logged_in",
+        "is_host_login",
+        "is_guest_login",
+        "protocol_type",
+        "service",
+        "flag",
+        "target"
+    ],
+    "num_col_idx": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33
+    ],
+    "cat_col_idx": [
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40
+    ],
+    "target_col_idx": [
+        41
+    ],
+    "file_type": "csv",
+    "data_path": "data/nsl-kdd/train.csv",
+    "test_path": "data/nsl-kdd/test.csv",
+    "val_path": null,
+    "int_col_idx": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33
+    ],
+    "int_columns": [
+        "duration",
+        "src_bytes",
+        "dst_bytes",
+        "wrong_fragment",
+        "urgent",
+        "hot",
+        "num_failed_logins",
+        "num_compromised",
+        "root_shell",
+        "su_attempted",
+        "num_root",
+        "num_file_creations",
+        "num_shells",
+        "num_access_files",
+        "num_outbound_cmds",
+        "count",
+        "srv_count",
+        "serror_rate",
+        "srv_serror_rate",
+        "rerror_rate",
+        "srv_rerror_rate",
+        "same_srv_rate",
+        "diff_srv_rate",
+        "srv_diff_host_rate",
+        "dst_host_count",
+        "dst_host_srv_count",
+        "dst_host_same_srv_rate",
+        "dst_host_diff_srv_rate",
+        "dst_host_same_src_port_rate",
+        "dst_host_srv_diff_host_rate",
+        "dst_host_serror_rate",
+        "dst_host_srv_serror_rate",
+        "dst_host_rerror_rate",
+        "dst_host_srv_rerror_rate"
+    ],
+    "int_col_idx_wrt_num": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33
+    ],
+    "column_info": {
+        "0": {},
+        "type": "categorical",
+        "max": 4.0,
+        "min": 0.0,
+        "1": {},
+        "2": {},
+        "3": {},
+        "4": {},
+        "5": {},
+        "6": {},
+        "7": {},
+        "8": {},
+        "9": {},
+        "10": {},
+        "11": {},
+        "12": {},
+        "13": {},
+        "14": {},
+        "15": {},
+        "16": {},
+        "17": {},
+        "18": {},
+        "19": {},
+        "20": {},
+        "21": {},
+        "22": {},
+        "23": {},
+        "24": {},
+        "25": {},
+        "26": {},
+        "27": {},
+        "28": {},
+        "29": {},
+        "30": {},
+        "31": {},
+        "32": {},
+        "33": {},
+        "34": {},
+        "categorizes": [
+            0,
+            1
+        ],
+        "35": {},
+        "36": {},
+        "37": {},
+        "38": {},
+        "39": {},
+        "40": {},
+        "41": {}
+    },
+    "train_num": 20153,
+    "test_num": 5039,
+    "val_num": 0,
+    "idx_mapping": {
+        "0": 0,
+        "1": 1,
+        "2": 2,
+        "3": 3,
+        "4": 4,
+        "5": 5,
+        "6": 6,
+        "7": 7,
+        "8": 8,
+        "9": 9,
+        "10": 10,
+        "11": 11,
+        "12": 12,
+        "13": 13,
+        "14": 14,
+        "15": 15,
+        "16": 16,
+        "17": 17,
+        "18": 18,
+        "19": 19,
+        "20": 20,
+        "21": 21,
+        "22": 22,
+        "23": 23,
+        "24": 24,
+        "25": 25,
+        "26": 26,
+        "27": 27,
+        "28": 28,
+        "29": 29,
+        "30": 30,
+        "31": 31,
+        "32": 32,
+        "33": 33,
+        "34": 34,
+        "35": 35,
+        "36": 36,
+        "37": 37,
+        "38": 38,
+        "39": 39,
+        "40": 40,
+        "41": 41
+    },
+    "inverse_idx_mapping": {
+        "0": 0,
+        "1": 1,
+        "2": 2,
+        "3": 3,
+        "4": 4,
+        "5": 5,
+        "6": 6,
+        "7": 7,
+        "8": 8,
+        "9": 9,
+        "10": 10,
+        "11": 11,
+        "12": 12,
+        "13": 13,
+        "14": 14,
+        "15": 15,
+        "16": 16,
+        "17": 17,
+        "18": 18,
+        "19": 19,
+        "20": 20,
+        "21": 21,
+        "22": 22,
+        "23": 23,
+        "24": 24,
+        "25": 25,
+        "26": 26,
+        "27": 27,
+        "28": 28,
+        "29": 29,
+        "30": 30,
+        "31": 31,
+        "32": 32,
+        "33": 33,
+        "34": 34,
+        "35": 35,
+        "36": 36,
+        "37": 37,
+        "38": 38,
+        "39": 39,
+        "40": 40,
+        "41": 41
+    },
+    "idx_name_mapping": {
+        "0": "duration",
+        "1": "src_bytes",
+        "2": "dst_bytes",
+        "3": "wrong_fragment",
+        "4": "urgent",
+        "5": "hot",
+        "6": "num_failed_logins",
+        "7": "num_compromised",
+        "8": "root_shell",
+        "9": "su_attempted",
+        "10": "num_root",
+        "11": "num_file_creations",
+        "12": "num_shells",
+        "13": "num_access_files",
+        "14": "num_outbound_cmds",
+        "15": "count",
+        "16": "srv_count",
+        "17": "serror_rate",
+        "18": "srv_serror_rate",
+        "19": "rerror_rate",
+        "20": "srv_rerror_rate",
+        "21": "same_srv_rate",
+        "22": "diff_srv_rate",
+        "23": "srv_diff_host_rate",
+        "24": "dst_host_count",
+        "25": "dst_host_srv_count",
+        "26": "dst_host_same_srv_rate",
+        "27": "dst_host_diff_srv_rate",
+        "28": "dst_host_same_src_port_rate",
+        "29": "dst_host_srv_diff_host_rate",
+        "30": "dst_host_serror_rate",
+        "31": "dst_host_srv_serror_rate",
+        "32": "dst_host_rerror_rate",
+        "33": "dst_host_srv_rerror_rate",
+        "34": "land",
+        "35": "logged_in",
+        "36": "is_host_login",
+        "37": "is_guest_login",
+        "38": "protocol_type",
+        "39": "service",
+        "40": "flag",
+        "41": "target"
+    },
+    "metadata": {
+        "columns": {
+            "0": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "1": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "2": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "3": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "4": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "5": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "6": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "7": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "8": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "9": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "10": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "11": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "12": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "13": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "14": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "15": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "16": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "17": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "18": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "19": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "20": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "21": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "22": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "23": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "24": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "25": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "26": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "27": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "28": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "29": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "30": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "31": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "32": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "33": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "34": {
+                "sdtype": "categorical"
+            },
+            "35": {
+                "sdtype": "categorical"
+            },
+            "36": {
+                "sdtype": "categorical"
+            },
+            "37": {
+                "sdtype": "categorical"
+            },
+            "38": {
+                "sdtype": "categorical"
+            },
+            "39": {
+                "sdtype": "categorical"
+            },
+            "40": {
+                "sdtype": "categorical"
+            },
+            "41": {
+                "sdtype": "categorical"
+            }
+        }
+    }
+}

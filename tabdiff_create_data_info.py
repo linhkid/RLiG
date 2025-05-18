@@ -263,6 +263,7 @@ def preprocess_data(X, y, discretize=True, model_name=None, cv_fold=None, n_fold
 
 def create_data_info(dataname, dataset_info, discretize):
     X, y = load_dataset(dataname, dataset_info)
+    print(X, y)
 
     # Get data and preprocess based on discretization flag for TabDiff
     X_train_tabdiff, X_test_tabdiff, y_train_tabdiff, y_test_tabdiff = (
@@ -294,3 +295,4 @@ if __name__ == "__main__":
     create_data_info(dataname="nursery", dataset_info=76, discretize=True)
     create_data_info(dataname="room_occupancy", dataset_info=864, discretize=True)
     create_data_info(dataname="chess", dataset_info=22, discretize=True)
+    create_data_info(dataname="nsl-kdd", dataset_info="data/nsl-kdd/Full -d/KDDTrain20.arff", discretize=True)
