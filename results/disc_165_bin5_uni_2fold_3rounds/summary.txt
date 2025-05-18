@@ -1,0 +1,40 @@
+Dataset Evaluation Summary
+Timestamp: Sat May 17 20:58:43 SEAST 2025
+=================================================
+Datasets processed:
+total 9
+drwxr-xr-x 1 PC 197609   0 May 17 20:58 ./
+drwxr-xr-x 1 PC 197609   0 May 17 20:58 ../
+drwxr-xr-x 1 PC 197609   0 May 17 16:47 adult_discrete/
+drwxr-xr-x 1 PC 197609   0 May 17 16:27 car_discrete/
+drwxr-xr-x 1 PC 197609   0 May 17 17:07 chess_discrete/
+drwxr-xr-x 1 PC 197609   0 May 17 20:38 connect4_discrete/
+drwxr-xr-x 1 PC 197609   0 May 17 19:57 credit_discrete/
+drwxr-xr-x 1 PC 197609   0 May 17 17:47 letter_recognition_discrete/
+drwxr-xr-x 1 PC 197609   0 May 17 19:37 loan_discrete/
+drwxr-xr-x 1 PC 197609   0 May 17 18:07 magic_discrete/
+drwxr-xr-x 1 PC 197609   0 May 17 19:12 maternal_health_discrete/
+drwxr-xr-x 1 PC 197609   0 May 17 20:58 nsl_kdd_discrete/
+drwxr-xr-x 1 PC 197609   0 May 17 18:27 nursery_discrete/
+drwxr-xr-x 1 PC 197609   0 May 17 20:17 pokerhand_discrete/
+drwxr-xr-x 1 PC 197609   0 May 17 16:07 rice_discrete/
+drwxr-xr-x 1 PC 197609   0 May 17 18:47 room_occupancy_discrete/
+drwxr-xr-x 1 PC 197609   0 May 17 17:27 tictactoe_discrete/
+total 12
+drwxr-xr-x 1 PC 197609    0 May 17 20:58 ./
+drwxr-xr-x 1 PC 197609    0 May 17 20:58 ../
+drwxr-xr-x 1 PC 197609    0 May 17 16:47 adult_discrete/
+drwxr-xr-x 1 PC 197609    0 May 17 16:27 car_discrete/
+drwxr-xr-x 1 PC 197609    0 May 17 17:07 chess_discrete/
+drwxr-xr-x 1 PC 197609    0 May 17 20:38 connect4_discrete/
+drwxr-xr-x 1 PC 197609    0 May 17 19:57 credit_discrete/
+drwxr-xr-x 1 PC 197609    0 May 17 17:47 letter_recognition_discrete/
+drwxr-xr-x 1 PC 197609    0 May 17 19:37 loan_discrete/
+drwxr-xr-x 1 PC 197609    0 May 17 18:07 magic_discrete/
+drwxr-xr-x 1 PC 197609    0 May 17 19:12 maternal_health_discrete/
+drwxr-xr-x 1 PC 197609    0 May 17 20:58 nsl_kdd_discrete/
+drwxr-xr-x 1 PC 197609    0 May 17 18:27 nursery_discrete/
+drwxr-xr-x 1 PC 197609    0 May 17 20:17 pokerhand_discrete/
+drwxr-xr-x 1 PC 197609    0 May 17 16:07 rice_discrete/
+drwxr-xr-x 1 PC 197609    0 May 17 18:47 room_occupancy_discrete/
+drwxr-xr-x 1 PC 197609    0 May 17 17:27 tictactoe_discrete/
