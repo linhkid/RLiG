@@ -2136,7 +2136,7 @@ def get_gaussianNB_bic_score(model, data):
 
 
 def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episodes=2, rlig_epochs=5,
-                  ctgan_epochs=50, great_bs=1, great_epochs=5, dist_sampl_epochs=50, verbose=False, discretize=True,
+                  ctgan_epochs=10, great_bs=1, great_epochs=2, dist_sampl_epochs=10, verbose=False, discretize=True,
                   use_cv=False, n_folds=2, nested_cv=False, tabdiff_epochs=5):
     """
     Compare generative models using TSTR methodology as described in the paper
@@ -2154,7 +2154,8 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
     # ... (other parameters)
     """
     if models is None:
-        models = ['rlig', 'ganblr', 'ganblr++', 'ctgan', 'ctabgan', 'nb', 'great', 'dist_sampl', 'tabdiff']
+        models = ['rlig', 'ganblr', 'ganblr++', 'ctgan', 'ctabgan', 'nb', 'great', 'dist_sampl']
+        #add , 'tabdiff' later
 
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -2954,37 +2955,35 @@ def parse_args():
     Maternal_Health: 863
     Loan & Credit: from local directory
     """
-    
-    # Dataset selection arguments
+
     parser.add_argument(
-        "--datasets", 
-        type=str, 
-        nargs="+", 
+        "--datasets",
+        type=str,
+        nargs="+",
         default=['Rice', 'TicTacToe', 'PokerHand', 'Connect-4', 'Credit',
-                 'Adult', 'Chess', 'letter_recog', 'Magic', 'Nursery', 'Room_Occupancy',
-                 'Car', 'Maternal_Health', 'Loan'],
+                 'Adult', 'Chess', 'LetterRecog', 'Magic', 'Nursery', 'RoomOccupancy',
+                 'Car', 'MaternalHealth'],
         help="List of dataset names to evaluate"
     )
-    
+
     # Add UCI dataset IDs
     parser.add_argument(
-        "--uci_ids", 
-        type=int, 
+        "--uci_ids",
+        type=int,
         nargs="+",
-        default=[2],
-        # default=[545, 101, 158, 26, 27, 2, 22, 59, 159, 76, 864, 19, 863],  # Default: Rice and TicTacToe
+        # default=[2],
+        default=[545, 101, 158, 26, 27, 2, 22, 59, 159, 76, 864, 19, 863],  # Default: Rice and TicTacToe
         help="List of UCI dataset IDs to use"
     )
-    
+
     # Add local dataset paths
     parser.add_argument(
-        "--local_datasets", 
-        type=str, 
-        nargs="+", 
-        default=['data/loan_approval_dataset.csv', 'data/UCI_Credit_Card.csv'],
+        "--local_datasets",
+        type=str,
+        nargs="+",
+        default=['data/loan_approval_dataset.csv'],
         help="List of paths to local dataset files (.arff or .csv)"
     )
-    
     # Evaluation parameters
     parser.add_argument(
         "--n_rounds", 
@@ -3049,7 +3048,7 @@ def parse_args():
     parser.add_argument(
         "--ctgan_epochs", 
         type=int, 
-        default=50,
+        default=10,
         help="Number of epochs for CTGAN training"
     )
     
@@ -3076,21 +3075,21 @@ def parse_args():
     parser.add_argument(
         "--great_bs",
         type=int,
-        default=1,
+        default=32,
         help="Number of batch size for GReaT training"
     )
 
     parser.add_argument(
         "--great_epochs",
         type=int,
-        default=1,
+        default=2,
         help="Number of epochs for GReaT training"
     )
     
     parser.add_argument(
         "--dist_sampl_epochs",
         type=int,
-        default=50,
+        default=10,
         help="Number of epochs for Distribution Sampling training"
     )
     
