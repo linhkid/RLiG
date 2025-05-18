@@ -999,7 +999,7 @@ def train_tabdiff(train_data, train_loader, name, epochs=50, random_seed=42):
     # run_tabdiff(config_path="configs/tabdiff_config.yaml")
 
     import json
-    info_path = f'data/Info/{name}.json'
+    info_path = f'data/{name}/info.json'
     with open(info_path, 'r') as f:
         info = json.load(f)
 
@@ -2496,7 +2496,7 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
             # #                                          batch_size=batch_size)
 
             import json
-            info_path = f'data/Info/{name}.json'
+            info_path = f'data/{name}/info.json'
             with open(info_path, 'r') as f:
                 info = json.load(f)
 
@@ -2939,7 +2939,7 @@ def parse_args():
     """PokerHand: 158
     NSL-KDD: data/nsl-kdd/KDDTrain+_20Percent.arff
     Connect-4: 26
-    Credit: 27
+    Credit: 27 --> default/credit: 350
     Adult: 2
     Chess: 22
     letter_recog: 59
