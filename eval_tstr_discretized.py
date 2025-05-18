@@ -144,7 +144,15 @@ try:
     if tabdiff_path not in sys.path:
         sys.path.append(tabdiff_path)
 
-    from tabdiff_module import run_tabdiff
+    from TabDiff.tabdiff.models.unified_ctime_diffusion import UnifiedCtimeDiffusion
+    from TabDiff.tabdiff.trainer import Trainer
+    from TabDiff.utils_train import TabDiffDataset
+
+    from TabDiff.tabdiff.modules.main_modules import UniModMLP
+    from TabDiff.tabdiff.modules.main_modules import Model
+
+    from TabDiff.tabdiff.metrics import TabMetrics
+    from TabDiff.utils_train import TabDiffDataset
 
     TABDIFF_AVAILABLE = True
 except ImportError as e:
@@ -1029,7 +1037,7 @@ def train_tabdiff(train_data, train_loader, name, epochs=50, random_seed=42):
         print(
             f"{name} does not have its validation set. During MLE evaluation, a validation set will be splitted from the training set!")
         val_data_path = None
-    from TabDiff.tabdiff.metrics import TabMetrics
+
     metrics = TabMetrics(real_data_path, test_data_path, val_data_path, info, device, metric_list=metric_list)
 
     # from TabDiff.utils_train import TabDiffDataset
@@ -1038,8 +1046,7 @@ def train_tabdiff(train_data, train_loader, name, epochs=50, random_seed=42):
     d_numerical, categories = train_data.d_numerical, train_data.categories
     print("categories", categories)
 
-    from TabDiff.tabdiff.modules.main_modules import UniModMLP
-    from TabDiff.tabdiff.modules.main_modules import Model
+
     backbone = UniModMLP(
         d_numerical=d_numerical,
         categories=(categories + 1).tolist(),  # add one for the mask category,
@@ -1055,7 +1062,7 @@ def train_tabdiff(train_data, train_loader, name, epochs=50, random_seed=42):
     model = Model(backbone, precond=True, sigma_data=1.0, net_conditioning="sigma")
     model.to(device)
 
-    from TabDiff.tabdiff.models.unified_ctime_diffusion import UnifiedCtimeDiffusion
+
 
     diffusion = UnifiedCtimeDiffusion(
         num_classes=categories,
@@ -1087,8 +1094,7 @@ def train_tabdiff(train_data, train_loader, name, epochs=50, random_seed=42):
     print("The number of parameters = ", num_params)
     diffusion.to(device)
     diffusion.train()
-    from TabDiff.tabdiff.trainer import Trainer
-    from TabDiff.utils_train import TabDiffDataset
+
     data_dir = f'data/{name}'
     val_data = TabDiffDataset(name, data_dir, info, isTrain=False)
 
@@ -2501,8 +2507,6 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
                 info = json.load(f)
 
 
-
-            from TabDiff.utils_train import TabDiffDataset
             data_dir = f'data/{name}'
             print("Info loaded", info, name, data_dir)
             train_data = TabDiffDataset(name, data_dir, info)
