@@ -1,25 +1,92 @@
 {
     "name": "adult",
     "task_type": "binclass",
-    "header": 0,
+    "header": null,
     "column_names": [
         "age",
-        "fnlwgt",
-        "education_num",
-        "capital_gain",
-        "capital_loss",
-        "hours_per_week",
         "workclass",
+        "fnlwgt",
         "education",
-        "marital_status",
+        "education.num",
+        "marital.status",
         "occupation",
         "relationship",
         "race",
         "sex",
-        "native_country",
-        "target"
+        "capital.gain",
+        "capital.loss",
+        "hours.per.week",
+        "native.country",
+        "income"
     ],
     "num_col_idx": [
+        0,
+        2,
+        4,
+        10,
+        11,
+        12
+    ],
+    "cat_col_idx": [
+        1,
+        3,
+        5,
+        6,
+        7,
+        8,
+        9,
+        13
+    ],
+    "target_col_idx": [
+        14
+    ],
+    "file_type": "csv",
+    "data_path": "data/adult/adult.data",
+    "val_path": null,
+    "test_path": "data/adult/adult.test",
+    "column_info": {
+        "0": {},
+        "type": "categorical",
+        "max": 99.0,
+        "min": 1.0,
+        "2": {},
+        "4": {},
+        "10": {},
+        "11": {},
+        "12": {},
+        "1": {},
+        "categorizes": [
+            " >50K",
+            " <=50K"
+        ],
+        "3": {},
+        "5": {},
+        "6": {},
+        "7": {},
+        "8": {},
+        "9": {},
+        "13": {},
+        "14": {}
+    },
+    "train_num": 32561,
+    "test_num": 9769,
+    "int_col_idx": [
+        0,
+        2,
+        4,
+        10,
+        11,
+        12
+    ],
+    "int_columns": [
+        "age",
+        "fnlwgt",
+        "education.num",
+        "capital.gain",
+        "capital.loss",
+        "hours.per.week"
+    ],
+    "int_col_idx_wrt_num": [
         0,
         1,
         2,
@@ -27,105 +94,57 @@
         4,
         5
     ],
-    "cat_col_idx": [
-        6,
-        7,
-        8,
-        9,
-        10,
-        11,
-        12,
-        13
-    ],
-    "target_col_idx": [
-        14
-    ],
-    "file_type": "csv",
-    "data_path": "data/adult/train.csv",
-    "test_path": "data/adult/test.csv",
-    "val_path": null,
-    "int_col_idx": [],
-    "int_columns": [],
-    "int_col_idx_wrt_num": [],
-    "column_info": {
-        "0": {},
-        "type": "categorical",
-        "max": 4.0,
-        "min": 0.0,
-        "1": {},
-        "2": {},
-        "3": {},
-        "4": {},
-        "5": {},
-        "6": {},
-        "categorizes": [
-            0,
-            1,
-            2,
-            3
-        ],
-        "7": {},
-        "8": {},
-        "9": {},
-        "10": {},
-        "11": {},
-        "12": {},
-        "13": {},
-        "14": {}
-    },
-    "train_num": 39073,
-    "test_num": 9769,
     "val_num": 0,
     "idx_mapping": {
         "0": 0,
-        "1": 1,
-        "2": 2,
-        "3": 3,
-        "4": 4,
-        "5": 5,
-        "6": 6,
-        "7": 7,
-        "8": 8,
-        "9": 9,
-        "10": 10,
-        "11": 11,
-        "12": 12,
+        "1": 6,
+        "2": 1,
+        "3": 7,
+        "4": 2,
+        "5": 8,
+        "6": 9,
+        "7": 10,
+        "8": 11,
+        "9": 12,
+        "10": 3,
+        "11": 4,
+        "12": 5,
         "13": 13,
         "14": 14
     },
     "inverse_idx_mapping": {
         "0": 0,
-        "1": 1,
-        "2": 2,
-        "3": 3,
-        "4": 4,
-        "5": 5,
-        "6": 6,
-        "7": 7,
-        "8": 8,
-        "9": 9,
-        "10": 10,
-        "11": 11,
-        "12": 12,
+        "6": 1,
+        "1": 2,
+        "7": 3,
+        "2": 4,
+        "8": 5,
+        "9": 6,
+        "10": 7,
+        "11": 8,
+        "12": 9,
+        "3": 10,
+        "4": 11,
+        "5": 12,
         "13": 13,
         "14": 14
     },
     "idx_name_mapping": {
         "0": "age",
-        "1": "fnlwgt",
-        "2": "education_num",
-        "3": "capital_gain",
-        "4": "capital_loss",
-        "5": "hours_per_week",
-        "6": "workclass",
-        "7": "education",
-        "8": "marital_status",
-        "9": "occupation",
-        "10": "relationship",
-        "11": "race",
-        "12": "sex",
-        "13": "native_country",
-        "14": "target"
+        "1": "workclass",
+        "2": "fnlwgt",
+        "3": "education",
+        "4": "education.num",
+        "5": "marital.status",
+        "6": "occupation",
+        "7": "relationship",
+        "8": "race",
+        "9": "sex",
+        "10": "capital.gain",
+        "11": "capital.loss",
+        "12": "hours.per.week",
+        "13": "native.country",
+        "14": "income"
     },
     "metadata": {
         "columns": {
@@ -133,15 +152,7 @@
                 "sdtype": "numerical",
                 "computer_representation": "Float"
             },
-            "1": {
-                "sdtype": "numerical",
-                "computer_representation": "Float"
-            },
             "2": {
-                "sdtype": "numerical",
-                "computer_representation": "Float"
-            },
-            "3": {
                 "sdtype": "numerical",
                 "computer_representation": "Float"
             },
@@ -149,9 +160,26 @@
                 "sdtype": "numerical",
                 "computer_representation": "Float"
             },
-            "5": {
+            "10": {
                 "sdtype": "numerical",
                 "computer_representation": "Float"
+            },
+            "11": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "12": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "1": {
+                "sdtype": "categorical"
+            },
+            "3": {
+                "sdtype": "categorical"
+            },
+            "5": {
+                "sdtype": "categorical"
             },
             "6": {
                 "sdtype": "categorical"
@@ -163,15 +191,6 @@
                 "sdtype": "categorical"
             },
             "9": {
-                "sdtype": "categorical"
-            },
-            "10": {
-                "sdtype": "categorical"
-            },
-            "11": {
-                "sdtype": "categorical"
-            },
-            "12": {
                 "sdtype": "categorical"
             },
             "13": {

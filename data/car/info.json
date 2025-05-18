@@ -1,0 +1,73 @@
+{
+    "name": "car",
+    "task_type": "binclass",
+    "header": "infer",
+    "column_names": [
+        "buying",
+        "maint",
+        "doors",
+        "persons",
+        "lug_boot",
+        "safety",
+        "class"
+    ],
+    "num_col_idx": [],
+    "cat_col_idx": [],
+    "target_col_idx": [
+        6
+    ],
+    "file_type": "csv",
+    "data_path": "data/car/car.data",
+    "test_path": null,
+    "val_path": null,
+    "int_col_idx": [],
+    "int_columns": [],
+    "int_col_idx_wrt_num": [],
+    "column_info": {
+        "6": {},
+        "type": "categorical",
+        "categorizes": [
+            "vgood",
+            "acc",
+            "unacc",
+            "good"
+        ]
+    },
+    "train_num": 1554,
+    "test_num": 173,
+    "val_num": 0,
+    "idx_mapping": {
+        "0": 0,
+        "1": 1,
+        "2": 2,
+        "3": 3,
+        "4": 4,
+        "5": 5,
+        "6": 6
+    },
+    "inverse_idx_mapping": {
+        "0": 0,
+        "1": 1,
+        "2": 2,
+        "3": 3,
+        "4": 4,
+        "5": 5,
+        "6": 6
+    },
+    "idx_name_mapping": {
+        "0": "buying",
+        "1": "maint",
+        "2": "doors",
+        "3": "persons",
+        "4": "lug_boot",
+        "5": "safety",
+        "6": "class"
+    },
+    "metadata": {
+        "columns": {
+            "6": {
+                "sdtype": "categorical"
+            }
+        }
+    }
+}

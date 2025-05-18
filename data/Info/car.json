@@ -1,7 +1,7 @@
 {
     "name": "car",
     "task_type": "binclass",
-    "header": null,
+    "header": "infer",
     "column_names": [
       "buying",
       "maint",
@@ -17,5 +17,5 @@
     "file_type": "csv",
     "data_path": "data/car/car.data",
     "test_path": null,
-    "val_path": null,
+    "val_path": null
 }

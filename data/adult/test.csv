@@ -1,4 +1,4 @@
-age,fnlwgt,education_num,capital_gain,capital_loss,hours_per_week,workclass,education,marital_status,occupation,relationship,race,sex,native_country,target
+age,workclass,fnlwgt,education,education.num,marital.status,occupation,relationship,race,sex,capital.gain,capital.loss,hours.per.week,native.country,income
 3.0,0.0,3.0,0.0,0.0,1.0,4.0,8.0,2.0,13.0,0.0,4.0,1.0,39.0,2
 1.0,1.0,3.0,0.0,0.0,1.0,4.0,9.0,2.0,1.0,0.0,1.0,1.0,30.0,0
 0.0,0.0,2.0,0.0,0.0,1.0,4.0,11.0,4.0,8.0,3.0,4.0,0.0,39.0,0
