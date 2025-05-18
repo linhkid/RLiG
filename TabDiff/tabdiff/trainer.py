@@ -159,7 +159,6 @@ class Trainer:
             curr_count = 0
             curr_lr = self.optimizer.param_groups[0]['lr']
             for batch in pbar:
-                print("batch: ", batch)
                 x = batch.float().to(self.device)
                 batch_dloss, batch_closs = self._run_step(x, closs_weight, dloss_weight)
                 curr_dloss += batch_dloss.item() * len(x)
@@ -583,14 +582,19 @@ def split_num_cat_target(syn_data, info, num_inverse, int_inverse, cat_inverse):
     if task_type == 'regression':
         n_num_feat += len(target_col_idx)
     else:
-        print(f'Task type {task_type} and {n_cat_feat}')
         n_cat_feat += len(target_col_idx)
 
     syn_num = syn_data[:, :n_num_feat]
     syn_cat = syn_data[:, n_num_feat:]
 
-    print("check num syn: ", syn_num, num_inverse)
-    syn_num = num_inverse(syn_num).astype(np.float32)
+    def to_numpy_float32(x):
+        """Convert tensor or numpy array to numpy float32"""
+        if torch.is_tensor(x):
+            return x.detach().cpu().numpy().astype(np.float32)
+        else:
+            return x.astype(np.float32)
+
+    syn_num = to_numpy_float32(num_inverse(syn_num))
     syn_num = int_inverse(syn_num).astype(np.float32)
     syn_cat = cat_inverse(syn_cat)
 
@@ -600,7 +604,6 @@ def split_num_cat_target(syn_data, info, num_inverse, int_inverse, cat_inverse):
         syn_num = syn_num[:, len(target_col_idx):]
     
     else:
-        print(syn_cat.shape)
         syn_target = syn_cat[:, :len(target_col_idx)]
         syn_cat = syn_cat[:, len(target_col_idx):]
 
