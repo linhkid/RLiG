@@ -12,29 +12,42 @@
         "class"
     ],
     "num_col_idx": [],
-    "cat_col_idx": [0, 1, 2, 3, 4, 5],
+    "cat_col_idx": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+    ],
     "target_col_idx": [
         6
     ],
     "file_type": "csv",
-    "data_path": "data/car/car.data",
-    "test_path": null,
+    "data_path": "data/car/train.csv",
+    "test_path": "data/car/test.csv",
     "val_path": null,
     "int_col_idx": [],
     "int_columns": [],
     "int_col_idx_wrt_num": [],
     "column_info": {
-        "6": {},
+        "0": {},
         "type": "categorical",
         "categorizes": [
-            "vgood",
-            "acc",
-            "unacc",
-            "good"
-        ]
+            0,
+            1,
+            2,
+            3
+        ],
+        "1": {},
+        "2": {},
+        "3": {},
+        "4": {},
+        "5": {},
+        "6": {}
     },
-    "train_num": 1554,
-    "test_num": 173,
+    "train_num": 1382,
+    "test_num": 346,
     "val_num": 0,
     "idx_mapping": {
         "0": 0,
@@ -65,6 +78,24 @@
     },
     "metadata": {
         "columns": {
+            "0": {
+                "sdtype": "categorical"
+            },
+            "1": {
+                "sdtype": "categorical"
+            },
+            "2": {
+                "sdtype": "categorical"
+            },
+            "3": {
+                "sdtype": "categorical"
+            },
+            "4": {
+                "sdtype": "categorical"
+            },
+            "5": {
+                "sdtype": "categorical"
+            },
             "6": {
                 "sdtype": "categorical"
             }

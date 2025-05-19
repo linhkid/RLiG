@@ -1,0 +1,24 @@
+{
+    "name": "Tictactoe",
+    "task_type": "binclass",
+    "header": "infer",
+    "column_names": [
+        "top_left_square",
+        "top_middle_square",
+        "top_right_square",
+        "middle_left_square",
+        "middle_middle_square",
+        "middle_right_square",
+        "bottom_left_square",
+        "bottom_middle_square",
+        "bottom_right_square",
+        "class"
+    ],
+    "num_col_idx": [],
+    "cat_col_idx": [0, 1, 2, 3, 4, 5, 6, 7, 8],
+    "target_col_idx": [9],
+    "file_type": "csv",
+    "data_path": "data/Tictactoe/train.csv",
+    "test_path": "data/Tictactoe/test.csv",
+    "val_path": null
+}

@@ -35,14 +35,47 @@
     "data_path": "data/magic/train.csv",
     "val_path": null,
     "test_path": "data/magic/test.csv",
-    "int_col_idx": [],
-    "int_columns": [],
-    "int_col_idx_wrt_num": [],
+    "int_col_idx": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+    ],
+    "int_columns": [
+        "fLength",
+        "fWidth",
+        "fSize",
+        "fConc",
+        "fConc1",
+        "fAsym",
+        "fM3Long",
+        "fM3Trans",
+        "fAlpha",
+        "fDist"
+    ],
+    "int_col_idx_wrt_num": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+    ],
     "column_info": {
         "0": {},
         "type": "categorical",
-        "max": 466.4078,
-        "min": 5.5449,
+        "max": 4.0,
+        "min": 0.0,
         "1": {},
         "2": {},
         "3": {},
@@ -54,12 +87,12 @@
         "9": {},
         "10": {},
         "categorizes": [
-            "h",
-            "g"
+            0,
+            1
         ]
     },
-    "train_num": 17117,
-    "test_num": 1902,
+    "train_num": 15216,
+    "test_num": 3804,
     "val_num": 0,
     "idx_mapping": {
         "0": 0,

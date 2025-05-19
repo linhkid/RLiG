@@ -666,8 +666,10 @@ if __name__ == "__main__":
             'nursery',
             'room_occupancy',
             'car',
-            'maternal_health'
+            'maternal_health',
             'Rice',
-            'nsl-kdd'
+            'nsl-kdd',
+            'Tictactoe',
+            'PokerHand'
         ]:
             process_data(name)

@@ -16,7 +16,9 @@ NAME_URL_DICT_UCI = {
     'nursery': 'https://archive.ics.uci.edu/static/public/76/nursery.zip',
     'room_occupancy': 'https://archive.ics.uci.edu/static/public/864/room+occupancy+estimation.zip',
     'car': 'https://archive.ics.uci.edu/static/public/19/car+evaluation.zip',
-    'maternal_health': 'https://archive.ics.uci.edu/static/public/863/maternal+health+risk.zip'
+    'maternal_health': 'https://archive.ics.uci.edu/static/public/863/maternal+health+risk.zip',
+    'Tictactoe': 'https://archive.ics.uci.edu/static/public/101/tic+tac+toe+endgame.zip',
+    'PokerHand': 'https://archive.ics.uci.edu/static/public/158/poker+hand.zip'
 }
 
 def unzip_file(zip_filepath, dest_path):

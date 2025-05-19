@@ -1,6 +1,6 @@
 {
     "name": "room_occupancy",
-    "task_type": "regression",
+    "task_type": "multiclass",
     "header": "infer",
     "column_names": [
         "Date",

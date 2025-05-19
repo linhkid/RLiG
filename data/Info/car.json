@@ -15,7 +15,7 @@
     "cat_col_idx": [0, 1, 2, 3, 4, 5],
     "target_col_idx": [6],
     "file_type": "csv",
-    "data_path": "data/car/car.data",
-    "test_path": null,
+    "data_path": "data/car/train.csv",
+    "test_path": "data/car/test.csv",
     "val_path": null
 }

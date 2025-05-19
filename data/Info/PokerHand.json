@@ -1,0 +1,25 @@
+{
+    "name": "PokerHand",
+    "task_type": "multiclass",
+    "header": "infer",
+    "column_names": [
+        "S1",
+        "C1",
+        "S2",
+        "C2",
+        "S3",
+        "C3",
+        "S4",
+        "C4",
+        "S5",
+        "C5",
+        "class"
+    ],
+    "num_col_idx": [1, 3, 5, 7, 9],
+    "cat_col_idx": [0, 2, 4, 6, 8],
+    "target_col_idx": [10],
+    "file_type": "csv",
+    "data_path": "data/PokerHand/train.csv",
+    "test_path": "data/PokerHand/test.csv",
+    "val_path": null
+}

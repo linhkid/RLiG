@@ -1131,7 +1131,7 @@ def train_tabdiff(train_data, train_loader, name, epochs=50, random_seed=42):
         val_data,
         metrics,
         logger,
-        steps=2,
+        steps=epochs,
         lr=0.001,
         weight_decay=0,
         ema_decay=0.997,
@@ -2724,7 +2724,7 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
 
             if tabdiff_model:
                 # Generate synthetic data
-                tabdiff_synthetic = generate_tabdiff_synthetic_data(tabdiff_model, train_data, n_samples=10)
+                tabdiff_synthetic = generate_tabdiff_synthetic_data(tabdiff_model, train_data, n_samples=n_samples)
 
                 if tabdiff_synthetic is not None:
                     # Store in cache
@@ -3184,7 +3184,7 @@ def parse_args():
         nargs="+",
         default=[
             # 545,  # Rice
-            # 101,  # TicTocToe
+            101,  # TicTocToe
             # 158,  # PokerHand
             # 26,  # Connect-4
             # 350,  # Default/Credit
@@ -3193,8 +3193,8 @@ def parse_args():
             # 59,  # Letter Recognition
             # 159,  # Magic
             # 76,  # Nursery
-            864,  # Room Occupancy
-            # 19,  # Car   --- generate nan in tabdiff --> skip
+            # 864,  # Room Occupancy
+            # 19,  # Car
             # 863,  # Maternal Health
 
         ],
@@ -3322,6 +3322,13 @@ def parse_args():
         help="Number of epochs for Distribution Sampling training"
     )
 
+    parser.add_argument(
+        "--tabdiff_epochs",
+        type=int,
+        default=50,
+        help="Number of epochs for TabDiff training"
+    )
+
     # Verbose mode
     parser.add_argument(
         "--verbose",
@@ -3386,6 +3393,7 @@ if __name__ == "__main__":
         great_bs=args.great_bs,
         great_epochs=args.great_epochs,
         dist_sampl_epochs=args.dist_sampl_epochs,
+        tabdiff_epochs=args.tabdiff_epochs,
         verbose=args.verbose,
         discretize=args.discretize,
         use_cv=args.use_cv,

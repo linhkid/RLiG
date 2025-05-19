@@ -434,4 +434,6 @@ if __name__ == "__main__":
     create_data_info(dataname="nursery", dataset_info=76, discretize=True)
     create_data_info(dataname="room_occupancy", dataset_info=864, discretize=True)
     create_data_info(dataname="chess", dataset_info=22, discretize=True)
+    create_data_info(dataname="Tictactoe", dataset_info=101, discretize=True)
+    create_data_info(dataname="PokerHand", dataset_info=158, discretize=True)
     create_data_info(dataname="nsl-kdd", dataset_info="data/nsl-kdd/Full -d/KDDTrain20.arff", discretize=True)

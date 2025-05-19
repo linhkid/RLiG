@@ -1,0 +1,123 @@
+{
+    "name": "nursery",
+    "task_type": "binclass",
+    "header": "infer",
+    "column_names": [
+        "parents",
+        "has_nurs",
+        "form",
+        "children",
+        "housing",
+        "finance",
+        "social",
+        "health",
+        "class"
+    ],
+    "num_col_idx": [],
+    "cat_col_idx": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+    ],
+    "target_col_idx": [
+        8
+    ],
+    "file_type": "csv",
+    "data_path": "data/nursery/train.csv",
+    "test_path": "data/nursery/test.csv",
+    "val_path": null,
+    "int_col_idx": [],
+    "int_columns": [],
+    "int_col_idx_wrt_num": [],
+    "column_info": {
+        "0": {},
+        "type": "categorical",
+        "categorizes": [
+            0,
+            1,
+            2,
+            3,
+            4
+        ],
+        "1": {},
+        "2": {},
+        "3": {},
+        "4": {},
+        "5": {},
+        "6": {},
+        "7": {},
+        "8": {}
+    },
+    "train_num": 10368,
+    "test_num": 2592,
+    "val_num": 0,
+    "idx_mapping": {
+        "0": 0,
+        "1": 1,
+        "2": 2,
+        "3": 3,
+        "4": 4,
+        "5": 5,
+        "6": 6,
+        "7": 7,
+        "8": 8
+    },
+    "inverse_idx_mapping": {
+        "0": 0,
+        "1": 1,
+        "2": 2,
+        "3": 3,
+        "4": 4,
+        "5": 5,
+        "6": 6,
+        "7": 7,
+        "8": 8
+    },
+    "idx_name_mapping": {
+        "0": "parents",
+        "1": "has_nurs",
+        "2": "form",
+        "3": "children",
+        "4": "housing",
+        "5": "finance",
+        "6": "social",
+        "7": "health",
+        "8": "class"
+    },
+    "metadata": {
+        "columns": {
+            "0": {
+                "sdtype": "categorical"
+            },
+            "1": {
+                "sdtype": "categorical"
+            },
+            "2": {
+                "sdtype": "categorical"
+            },
+            "3": {
+                "sdtype": "categorical"
+            },
+            "4": {
+                "sdtype": "categorical"
+            },
+            "5": {
+                "sdtype": "categorical"
+            },
+            "6": {
+                "sdtype": "categorical"
+            },
+            "7": {
+                "sdtype": "categorical"
+            },
+            "8": {
+                "sdtype": "categorical"
+            }
+        }
+    }
+}

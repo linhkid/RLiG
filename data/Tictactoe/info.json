@@ -1,0 +1,129 @@
+{
+    "name": "Tictactoe",
+    "task_type": "binclass",
+    "header": "infer",
+    "column_names": [
+        "top_left_square",
+        "top_middle_square",
+        "top_right_square",
+        "middle_left_square",
+        "middle_middle_square",
+        "middle_right_square",
+        "bottom_left_square",
+        "bottom_middle_square",
+        "bottom_right_square",
+        "class"
+    ],
+    "num_col_idx": [],
+    "cat_col_idx": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+    ],
+    "target_col_idx": [
+        9
+    ],
+    "file_type": "csv",
+    "data_path": "data/Tictactoe/train.csv",
+    "test_path": "data/Tictactoe/test.csv",
+    "val_path": null,
+    "int_col_idx": [],
+    "int_columns": [],
+    "int_col_idx_wrt_num": [],
+    "column_info": {
+        "0": {},
+        "type": "categorical",
+        "categorizes": [
+            0,
+            1
+        ],
+        "1": {},
+        "2": {},
+        "3": {},
+        "4": {},
+        "5": {},
+        "6": {},
+        "7": {},
+        "8": {},
+        "9": {}
+    },
+    "train_num": 766,
+    "test_num": 192,
+    "val_num": 0,
+    "idx_mapping": {
+        "0": 0,
+        "1": 1,
+        "2": 2,
+        "3": 3,
+        "4": 4,
+        "5": 5,
+        "6": 6,
+        "7": 7,
+        "8": 8,
+        "9": 9
+    },
+    "inverse_idx_mapping": {
+        "0": 0,
+        "1": 1,
+        "2": 2,
+        "3": 3,
+        "4": 4,
+        "5": 5,
+        "6": 6,
+        "7": 7,
+        "8": 8,
+        "9": 9
+    },
+    "idx_name_mapping": {
+        "0": "top_left_square",
+        "1": "top_middle_square",
+        "2": "top_right_square",
+        "3": "middle_left_square",
+        "4": "middle_middle_square",
+        "5": "middle_right_square",
+        "6": "bottom_left_square",
+        "7": "bottom_middle_square",
+        "8": "bottom_right_square",
+        "9": "class"
+    },
+    "metadata": {
+        "columns": {
+            "0": {
+                "sdtype": "categorical"
+            },
+            "1": {
+                "sdtype": "categorical"
+            },
+            "2": {
+                "sdtype": "categorical"
+            },
+            "3": {
+                "sdtype": "categorical"
+            },
+            "4": {
+                "sdtype": "categorical"
+            },
+            "5": {
+                "sdtype": "categorical"
+            },
+            "6": {
+                "sdtype": "categorical"
+            },
+            "7": {
+                "sdtype": "categorical"
+            },
+            "8": {
+                "sdtype": "categorical"
+            },
+            "9": {
+                "sdtype": "categorical"
+            }
+        }
+    }
+}
