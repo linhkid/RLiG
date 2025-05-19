@@ -2681,7 +2681,7 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
             # try:
             # Get data and preprocess based on discretization flag for TabDiff
             X_train_tabdiff, X_test_tabdiff, y_train_tabdiff, y_test_tabdiff = (
-                preprocess_data(X, y, discretize=discretize, model_name='tabdiff')
+                preprocess_data(X, y, name=name, discretize=discretize, model_name='tabdiff')
             )
             print("Shape of X_train_tabdiff: ", X_train_tabdiff.shape)
             print("Shape of X_test_tabdiff: ", X_test_tabdiff.shape)
@@ -2774,7 +2774,7 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
                         f"\n{'=' * 15} FOLD {fold_idx_eval + 1}/{n_folds} FOR {dataset_name_eval} (Round {round_idx + 1 if nested_cv else 1}) {'=' * 15}\n")
                     # Get specific X_test, y_test for this fold
                     _, X_test_fold, _, y_test_fold = preprocess_data(
-                        X_orig, y_orig, discretize=discretize, cv_fold=fold_idx_eval, n_folds=n_folds
+                        X_orig, y_orig, name=dataset_name_eval, discretize=discretize, cv_fold=fold_idx_eval, n_folds=n_folds
                     )
                     # evaluate_models_on_fold uses synthetic_data_cache which has models trained once.
                     # It will use X_test_fold, y_test_fold for evaluation.
@@ -3167,32 +3167,6 @@ def parse_args():
     """
 
     # Dataset selection arguments
-    # Model selection arguments
-    parser.add_argument(
-        "--models",
-        type=str,
-        nargs="+",
-        default=['rlig', 'ganblr', 'ganblr++', 'ctgan', 'ctabgan', 'nb', 'great', 'dist_sampl', 'tabdiff'],
-        help="List of models to evaluate. Options: rlig, ganblr, ganblr++, ctgan, ctabgan, nb, great, dist_sampl, tab_diff"
-    )
-
-    """PokerHand: 158
-    NSL-KDD: data/nsl-kdd/KDDTrain+_20Percent.arff
-    Connect-4: 26
-    Credit: 27 --> default/credit: 350
-    Adult: 2
-    Chess: 22
-    letter_recog: 59
-    Magic: 159
-    Nursery: 76
-    Room_Occupancy: 864
-    Car: 19
-    Maternal_Health: 863
-    TicTocToe: 101
-    Loan & Credit: from local directory
-    """
-
-    # Dataset selection arguments
     parser.add_argument(
         "--datasets",
         type=str,
@@ -3209,19 +3183,19 @@ def parse_args():
         type=int,
         nargs="+",
         default=[
-            545,  # Rice
-            101,  # TicTocToe
-            158,  # PokerHand
-            26,  # Connect-4
-            350,  # Default/Credit
-            2,  # Adult
-            22,  # Chess
-            59,  # Letter Recognition
-            159,  # Magic
-            76,  # Nursery
+            # 545,  # Rice
+            # 101,  # TicTocToe
+            # 158,  # PokerHand
+            # 26,  # Connect-4
+            # 350,  # Default/Credit
+            # 2,  # Adult
+            # 22,  # Chess
+            # 59,  # Letter Recognition
+            # 159,  # Magic
+            # 76,  # Nursery
             864,  # Room Occupancy
-            19,  # Car   --- generate nan in tabdiff --> skip
-            863,  # Maternal Health
+            # 19,  # Car   --- generate nan in tabdiff --> skip
+            # 863,  # Maternal Health
 
         ],
         # default=[545, 101, 158, 26, 27, 2, 22, 59, 159, 76, 864, 19, 863],  # Default: Rice and TicTacToe
