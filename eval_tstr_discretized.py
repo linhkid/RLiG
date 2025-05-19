@@ -2333,7 +2333,7 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
     # ... (other parameters)
     """
     if models is None:
-        models = ['rlig', 'ganblr', 'ganblr++', 'ctgan', 'ctabgan', 'nb', 'great', 'dist_sampl']
+        models = ['rlig', 'ganblr', 'ganblr++', 'ctgan', 'ctabgan', 'nb', 'great', 'dist_sampl', 'tabdiff']
         # add , 'tabdiff' later
 
     np.random.seed(seed)
@@ -3171,9 +3171,12 @@ def parse_args():
         "--datasets",
         type=str,
         nargs="+",
-        default=['Rice', 'TicTacToe', 'PokerHand', 'Connect-4', 'Credit',
-                 'Adult', 'Chess', 'LetterRecog', 'Magic', 'Nursery', 'RoomOccupancy',
-                 'Car', 'MaternalHealth'],
+        default=[
+            # 'Rice', 'TicTacToe', 'PokerHand', 'Connect-4', 'Credit',
+            #      'Adult', 'Chess', 'LetterRecog', 'Magic', 'Nursery', 'RoomOccupancy',
+            #      'Car', 'MaternalHealth',
+                 'nsl-kdd'              # local-path, no uci-id (i.e. [])
+                 ],
         help="List of dataset names to evaluate"
     )
 
@@ -3184,7 +3187,7 @@ def parse_args():
         nargs="+",
         default=[
             # 545,  # Rice
-            101,  # TicTocToe
+            # 101,  # TicTocToe
             # 158,  # PokerHand
             # 26,  # Connect-4
             # 350,  # Default/Credit
@@ -3195,8 +3198,7 @@ def parse_args():
             # 76,  # Nursery
             # 864,  # Room Occupancy
             # 19,  # Car
-            # 863,  # Maternal Health
-
+            # 863,  # Maternal Healthuy
         ],
         # default=[545, 101, 158, 26, 27, 2, 22, 59, 159, 76, 864, 19, 863],  # Default: Rice and TicTacToe
         # default=[2],
@@ -3209,7 +3211,7 @@ def parse_args():
         "--local_datasets",
         type=str,
         nargs="+",
-        default=['data/loan_approval_dataset.csv', 'data/UCI_Credit_Card.csv'],
+        default=['data/loan_approval_dataset.csv', 'data/UCI_Credit_Card.csv', 'data/nsl-kdd/Full -d/KDDTrain20.arff'],
         help="List of paths to local dataset files (.arff or .csv)"
     )
 
