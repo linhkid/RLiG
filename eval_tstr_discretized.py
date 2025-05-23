@@ -33,6 +33,7 @@ import torch
 import time
 import warnings
 import logging
+import json
 import numpy as np
 import pandas as pd
 import argparse
@@ -918,60 +919,93 @@ def train_rlig(X_train, y_train, episodes=2, epochs=5):
         return None
 
 
-def train_great(X_train, y_train, batch_size=1, epochs=1):
+def train_great(X_train, y_train, batch_size=32, epochs=2):
     """Train a Generation of Realistic Tabular data
-    with pretrained Transformer-based language models"""
+    with pretrained Transformer-based language models.
+    Includes subsampling for datasets with >= 20000 rows."""
     if not GREAT_AVAILABLE:
         return None
 
     try:
+        # Subsampling logic similar to train_ctabgan
+        if len(X_train) >= 50000:
+            print(f"Large dataset detected for GReaT training ({len(X_train)} rows). Applying stratified subsampling.")
+
+            y_values_for_stratification = None
+            if isinstance(y_train, pd.DataFrame):
+                # Assuming the target for stratification is the first column if y_train is a DataFrame
+                y_values_for_stratification = y_train.iloc[:, 0]
+            elif isinstance(y_train, pd.Series):
+                y_values_for_stratification = y_train
+            else:
+                # Convert to pandas Series if numpy array or list
+                y_values_for_stratification = pd.Series(y_train)
+
+            if y_values_for_stratification is not None:
+                sample_size = max(50000, int(0.2 * len(X_train)))
+                actual_sample_size = min(sample_size, len(X_train))
+
+                if len(X_train) > actual_sample_size:
+                    # Check if stratification is possible
+                    can_stratify = len(y_values_for_stratification.unique()) > 1
+
+                    X_train_sampled, _, y_train_sampled, _ = train_test_split(
+                        X_train,
+                        y_values_for_stratification,
+                        train_size=actual_sample_size,
+                        stratify=y_values_for_stratification if can_stratify else None,
+                        random_state=42
+                    )
+                    print(
+                        f"Using {len(X_train_sampled)} stratified samples for GReaT training (original size: {len(X_train)}).")
+                    X_train = X_train_sampled
+                    y_train = y_train_sampled  # y_train is now a pd.Series
+                else:
+                    print(
+                        f"Dataset size ({len(X_train)}) not reduced by subsampling. Using all data for GReaT training.")
+            else:
+                print(
+                    "Warning: Could not determine y_values for stratification. Proceeding with full dataset for GReaT.")
+
         # Initialize and train GReaT model
         device = "cuda" if torch.cuda.is_available() else "cpu"
-        print(f"CUDA available: {torch.cuda.is_available()}. Using device: {device}")
+        print(f"CUDA available: {torch.cuda.is_available()}. Using device: {device} for GReaT.")
 
-        # Configure GReaT with appropriate parameters and suppress warnings
         great_model = GReaT(
-            llm='distilgpt2',
-            batch_size=32,
-            epochs=2,
+            llm='distilgpt2',  # This can be parameterized if needed
+            batch_size=batch_size,  # Use the function argument
+            epochs=epochs,  # Use the function argument
             fp16=True,
-            # gradient_accumulation_steps=8,
-            dataloader_num_workers=4,
-            metric_for_best_model="accuracy"
+            # gradient_accumulation_steps=8, # As in original
+            dataloader_num_workers=4,  # As in original
+            metric_for_best_model="accuracy"  # As in original
         )
 
-        # Set pad token explicitly to address the attention mask warning
+        # Set pad token explicitly (from original code)
         if hasattr(great_model, 'tokenizer') and great_model.tokenizer is not None:
             if great_model.tokenizer.pad_token is None:
                 great_model.tokenizer.pad_token = great_model.tokenizer.eos_token
-                print("Set pad_token to eos_token to fix attention mask warning")
+                print("Set GReaT pad_token to eos_token to fix attention mask warning")
 
-        # otherwise for Mac, use this
-        # great_model = GReaT(llm='unsloth/Llama-3.2-1B', batch_size=batch_size, epochs=epochs,
-        #                     metric_for_best_model="accuracy",
-        #                     # # For weak machine, add more 3 following lines
-        #                     dataloader_num_workers=0,  # 0 means no parallelism in data loading
-        #                     gradient_accumulation_steps=8,
-        #                     efficient_finetuning="lora",
-        #                     lora_target_modules=["q_proj", "v_proj"]
-        #                     )
-        # 
-        # # Set pad token explicitly to address the attention mask warning
-        # if hasattr(great_model, 'tokenizer') and great_model.tokenizer is not None:
-        #     if great_model.tokenizer.pad_token is None:
-        #         great_model.tokenizer.pad_token = great_model.tokenizer.eos_token
-        #         print("Set pad_token to eos_token to fix attention mask warning")
-        # Ensure the data is properly formatted
+        # Ensure y_train is in the correct format (Series) for GReaT's fit method
+        y_series = None
         if isinstance(y_train, pd.DataFrame):
-            y_series = y_train.iloc[:, 0] if y_train.shape[1] == 1 else y_train
-        else:
+            y_series = y_train.iloc[:, 0] if y_train.shape[1] == 1 else y_train.squeeze()
+            if isinstance(y_series, pd.DataFrame):  # If still a DataFrame (e.g. multiple columns in y_train)
+                y_series = y_train.iloc[:, 0]  # Default to first column
+        elif isinstance(y_train, pd.Series):
             y_series = y_train
+        else:  # Convert from numpy array or list
+            y_series = pd.Series(y_train)
 
-        print(f"Training GReaT with {epochs} epochs")
+        print(f"Training GReaT with {epochs} epochs and batch_size={batch_size}.")
         great_model.fit(X_train, y_series)
         return great_model
+
     except Exception as e:
         print(f"Error training GReaT model: {e}")
+        import traceback
+        print(traceback.format_exc())
         return None
 
 
@@ -1422,58 +1456,115 @@ def generate_ctabgan_synthetic_data(ctabgan_model, train_data, n_samples=None):
             return None
 
 
-def generate_great_synthetic_data(great_model, train_data, n_samples=None):
-    """Generate synthetic data from GReaT model"""
+def generate_great_synthetic_data(great_model, train_data, n_samples=None, generation_batch_size=5000):
+    """
+    Generate synthetic data from GReaT model with batching and revised sample capping.
+    """
     if not GREAT_AVAILABLE or great_model is None:
+        print("GReaT model is not available or not provided.")
         return None
 
-    if n_samples is None:
-        n_samples = len(train_data)
+    if train_data is None:
+        print("Error: train_data is None. It's required to determine sample limits.")
+        return None
+
+    # Determine initial requested n_samples
+    initial_requested_n_samples = n_samples if n_samples is not None else len(train_data)
+
+    # Revised Capping Logic
+    absolute_cap = 100000
+
+    if len(train_data) > 100000:
+        # If train_data is very large, cap is 20% of train_data, or 100k,
+        # or the user's initial request, whichever is lowest.
+        cap_20_percent = int(np.floor(0.2 * len(train_data)))
+        effective_n_samples = min(initial_requested_n_samples, cap_20_percent, absolute_cap)
+        print(f"Train_data size ({len(train_data)}) > 100k. Applying 20% rule or 100k absolute cap.")
+    else:
+        # If train_data is not > 100k, cap is len(train_data) or 100k (effectively len(train_data) since it's smaller),
+        # or the user's initial request, whichever is lowest.
+        effective_n_samples = min(initial_requested_n_samples, len(train_data), absolute_cap)
+        print(f"Train_data size ({len(train_data)}) <= 100k. Cap based on train_data size or 100k absolute cap.")
+
+    if effective_n_samples < initial_requested_n_samples:
+        print(f"Original n_samples requested/defaulted: {initial_requested_n_samples}")
+        print(f"Effective n_samples for generation after capping: {effective_n_samples}")
+    else:
+        print(f"n_samples for generation: {effective_n_samples}")
+
+    n_samples = effective_n_samples  # Update n_samples to the capped value
+
+    if n_samples <= 0:  # Changed to <= 0 to catch potential negative values if logic were different
+        print(f"Effective n_samples is {n_samples}. Returning an empty DataFrame.")
+        return pd.DataFrame()
 
     try:
         device = "cuda" if torch.cuda.is_available() else "cpu"
-        print(f"CUDA available: {torch.cuda.is_available()}. Using device: {device}")
+        print(f"GReaT: CUDA available: {torch.cuda.is_available()}. Using device: {device} for generation.")
 
-        # For M1/M2 Macs, generate in smaller batches
-        import os
-        if hasattr(os, 'uname') and os.uname().machine == 'arm64' and n_samples > 500:
-            print(f"Generating {n_samples} samples in smaller batches for Apple Silicon compatibility")
-            batch_size = 500
-            num_batches = (n_samples + batch_size - 1) // batch_size  # Ceiling division
+        all_batches = []
 
-            # Generate in batches and concatenate
-            batches = []
-            for i in range(num_batches):
-                print(f"Generating batch {i + 1}/{num_batches}")
-                this_batch_size = min(batch_size, n_samples - i * batch_size)
-                # Sample with standard parameters
-                batch = great_model.sample(this_batch_size, device=device)
-                batches.append(batch)
+        if n_samples > generation_batch_size:
+            print(f"Generating {n_samples} samples in batches of up to {generation_batch_size}.")
+            num_full_batches = int(n_samples // generation_batch_size)
+            remaining_samples = int(n_samples % generation_batch_size)
 
-            synthetic_data = pd.concat(batches, ignore_index=True)
+            for i in range(num_full_batches):
+                current_batch_size = generation_batch_size
+                print(
+                    f"Generating batch {i + 1}/{num_full_batches + (1 if remaining_samples > 0 else 0)} (size: {current_batch_size})")
+                try:
+                    batch = great_model.sample(current_batch_size, k=200, max_length=1000,device=device)
+                    all_batches.append(batch)
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                except Exception as batch_error:
+                    print(f"Error generating batch {i + 1}: {batch_error}")
+                    raise batch_error
+
+            if remaining_samples > 0:
+                print(f"Generating final batch (size: {remaining_samples})")
+                try:
+                    batch = great_model.sample(remaining_samples, k=200, max_length=1000,device=device)
+                    all_batches.append(batch)
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                except Exception as batch_error:
+                    print(f"Error generating final batch: {batch_error}")
+                    raise batch_error
+
+            if not all_batches:
+                print("No batches were successfully generated.")
+                synthetic_data = pd.DataFrame()
+            else:
+                synthetic_data = pd.concat(all_batches, ignore_index=True)
         else:
-            # Regular generation for other platforms
-            # Sample with standard parameters
-            synthetic_data = great_model.sample(n_samples, device=device)
+            print(f"Generating {n_samples} samples in a single batch.")
+            synthetic_data = great_model.sample(n_samples,  k=200, max_length=1000, device=device)
 
-        print(f"Generated {len(synthetic_data)} synthetic samples from GReaT")
+        print(f"Successfully generated {len(synthetic_data)} synthetic samples using GReaT.")
         return synthetic_data
-    except Exception as e:
-        print(f"Error generating synthetic data from GReaT: {e}")
 
-        # Fallback: if sampling fails, try to sample a smaller number
+    except Exception as e:
+        print(f"Error during GReaT synthetic data generation: {e}")
+        import traceback
+        print(traceback.format_exc())
+
         try:
             device = "cuda" if torch.cuda.is_available() else "cpu"
-            print(f"CUDA available: {torch.cuda.is_available()}. Using device: {device}")
-
             fallback_samples = min(n_samples, 500)
-            print(f"Trying fallback with {fallback_samples} samples")
-            # Sample with standard parameters for fallback
-            synthetic_data = great_model.sample(fallback_samples, device=device)
-            print(f"Generated {len(synthetic_data)} synthetic samples as fallback")
-            return synthetic_data
+            print(f"Attempting fallback: generating {fallback_samples} samples.")
+
+            if fallback_samples > 0:
+                synthetic_data = great_model.sample(fallback_samples, device=device)
+                print(f"Fallback: Successfully generated {len(synthetic_data)} synthetic samples.")
+                return synthetic_data
+            else:
+                print("Fallback: n_samples for fallback is 0 or negative, cannot generate fallback samples.")
+                return pd.DataFrame()
+
         except Exception as fallback_error:
-            print(f"Fallback also failed: {fallback_error}")
+            print(f"Fallback generation also failed: {fallback_error}")
             return None
 
 
@@ -2314,7 +2405,7 @@ def get_gaussianNB_bic_score(model, data):
 
 
 def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episodes=2, rlig_epochs=5,
-                        ctgan_epochs=10, great_bs=1, great_epochs=2, dist_sampl_epochs=10, verbose=False,
+                        ctgan_epochs=10, great_bs=1, great_epochs=5, dist_sampl_epochs=10, verbose=False,
                         discretize=True,
                         use_cv=False, n_folds=2, nested_cv=False, tabdiff_epochs=5):
     """
@@ -2677,69 +2768,182 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
 
         # --- TabDiff ---
         if 'tabdiff' in models and TABDIFF_AVAILABLE:
-            print("\n-- Generating synthetic data for TabDiff --")
-            # try:
-            # Get data and preprocess based on discretization flag for TabDiff
-            X_train_tabdiff, X_test_tabdiff, y_train_tabdiff, y_test_tabdiff = (
-                preprocess_data(X, y, name=name, discretize=discretize, model_name='tabdiff')
-            )
-            print("Shape of X_train_tabdiff: ", X_train_tabdiff.shape)
-            print("Shape of X_test_tabdiff: ", X_test_tabdiff.shape)
+            print(f"\n-- Processing TabDiff for dataset: {name} --")
+            model_train_time = 0.0  # Initialize training time
+            tabdiff_model = None  # Initialize model variable
 
-            # from _utils import save_to_csv
-            # # Save train data
-            # save_to_csv(X_train_tabdiff, y_train_tabdiff, f"data/{name}", "train.csv")
-            #
-            # # Save test data
-            # save_to_csv(X_test_tabdiff, y_test_tabdiff, f"data/{name}", "test.csv")
-            #
-            # # from TabDiff.tabdiff_data_loader import create_tabdiff_dataloader
-            # # batch_size = 256
-            # # train_loader = create_tabdiff_dataloader(X_train_tabdiff, y_train_tabdiff,
-            # #                                          batch_size=batch_size)
+            try:
+                # TabDiff specific data loading using TabDiffDataset
+                # 'name' is the current dataset name from the outer loop (e.g., "Adult", "Rice")
+                # 'tabdiff_epochs' and 'seed' are assumed to be from args or outer scope
 
-            import json
-            info_path = f'data/{name}/info.json'
-            with open(info_path, 'r') as f:
-                info = json.load(f)
+                info_path = f'data/{name}/info.json'
+                try:
+                    with open(info_path, 'r') as f:
+                        info = json.load(f)
+                except FileNotFoundError:
+                    print(
+                        f"ERROR: TabDiff info.json not found at {info_path} for dataset {name}. Skipping TabDiff for this dataset.")
+                    # Ensure a cache entry is made so results processing doesn't break
+                    if name not in synthetic_data_cache:
+                        synthetic_data_cache[name] = {'models': {}}
+                    synthetic_data_cache[name]['models']['tabdiff'] = {'data': None, 'train_time': 0.0}
+                    # Use 'continue' if this snippet is directly inside the dataset loop in compare_models_tstr
+                    # For a self-contained snippet, this 'raise' will be caught by the outer try-except here.
+                    raise
+                except json.JSONDecodeError:
+                    print(
+                        f"ERROR: TabDiff info.json at {info_path} for dataset {name} is not valid JSON. Skipping TabDiff.")
+                    if name not in synthetic_data_cache:
+                        synthetic_data_cache[name] = {'models': {}}
+                    synthetic_data_cache[name]['models']['tabdiff'] = {'data': None, 'train_time': 0.0}
+                    raise
 
-            data_dir = f'data/{name}'
-            print("Info loaded", info, name, data_dir)
-            train_data = TabDiffDataset(name, data_dir, info)
-            d_numerical, categories = train_data.d_numerical, train_data.categories
-            print("categories", categories)
+                data_dir = f'data/{name}'
+                print(f"TabDiff: Loading info from {info_path}, data_dir: {data_dir}")
 
-            batch_size = 256
+                # This is the dataset object TabDiff will use for training
+                tabdiff_train_dataset_obj = TabDiffDataset(name, data_dir, info)
 
-            train_loader = DataLoader(
-                train_data,
-                batch_size=batch_size,
-                shuffle=True,
-                num_workers=4,
-            )
+                # DataLoader for TabDiff training
+                tabdiff_batch_size = 256  # Consider making this an argparse parameter
+                tabdiff_num_workers = 4  # Safer default for cross-platform (0 means main process)
+                # For Linux/Windows, you might try 2 or 4 if your system handles it well.
 
-            # Train TabDiff model with consistent random seed
-            tabdiff_model = train_tabdiff(train_data=train_data, train_loader=train_loader, name=name,
-                                          epochs=tabdiff_epochs, random_seed=seed)
+                train_loader = DataLoader(
+                    tabdiff_train_dataset_obj,
+                    batch_size=tabdiff_batch_size,
+                    shuffle=True,
+                    num_workers=tabdiff_num_workers,
+                    pin_memory=True if tabdiff_num_workers > 0 and torch.cuda.is_available() else False
+                    # Optional: pin_memory
+                )
 
-            if tabdiff_model:
-                # Generate synthetic data
-                tabdiff_synthetic = generate_tabdiff_synthetic_data(tabdiff_model, train_data, n_samples=n_samples)
+                print(
+                    f"TabDiff: Training DataLoader initialized for {name} with batch_size={tabdiff_batch_size}, num_workers={tabdiff_num_workers}.")
 
-                if tabdiff_synthetic is not None:
-                    # Store in cache
-                    synthetic_data_cache[name]['models']['tabdiff'] = {
-                        'data': tabdiff_synthetic,
-                        'X_test': X_test_tabdiff,
-                        'y_test': y_test_tabdiff
-                    }
+                # Record start time for TabDiff training
+                start_model_time = time.time()
 
-                    # Save synthetic data
-                    os.makedirs("train_data", exist_ok=True)
-                    tabdiff_synthetic.head(1000).to_csv(f"train_data/tabdiff_{name}_synthetic.csv", index=False)
-                    print(f"TabDiff synthetic data saved to train_data/tabdiff_{name}_synthetic.csv")
-            # except Exception as e:
-            #     print(f"Error generating TabDiff synthetic data: {e}")
+                tabdiff_model = train_tabdiff(
+                    train_data=tabdiff_train_dataset_obj,
+                    train_loader=train_loader,
+                    name=name,
+                    epochs=tabdiff_epochs,  # Assumed to be from args
+                    random_seed=seed  # Global seed from args
+                )
+                model_train_time = time.time() - start_model_time
+                print(f"TabDiff: Training completed for {name}. Time: {model_train_time:.2f} seconds.")
+
+                if tabdiff_model:
+                    # Generate synthetic data
+                    # 'n_samples' is from the outer loop context (e.g., len(train_data_for_gen_model))
+                    print(f"TabDiff: Generating {n_samples} synthetic samples for {name}.")
+                    tabdiff_synthetic = generate_tabdiff_synthetic_data(
+                        tabdiff_model,
+                        train_data=tabdiff_train_dataset_obj,  # Context for generation if needed
+                        n_samples=n_samples
+                    )
+
+                    if tabdiff_synthetic is not None and not tabdiff_synthetic.empty:
+                        print(
+                            f"TabDiff: Synthetic data generated successfully for {name}. Shape: {tabdiff_synthetic.shape}")
+                        # Store training time and synthetic data in the cache
+                        synthetic_data_cache[name]['models']['tabdiff'] = {
+                            'data': tabdiff_synthetic,
+                            'train_time': model_train_time
+                        }
+                        # Save synthetic data using the common helper function
+                        # This function handles the logic for small vs. large datasets (sampling if > 20k)
+                        save_synthetic_data(tabdiff_synthetic, "tabdiff", name)  # 'name' is dataset_name
+                        print(f"TabDiff: Synthetic data for {name} saved using common helper function.")
+                    else:
+                        print(f"TabDiff: Synthetic data generation failed or returned empty for {name}.")
+                        synthetic_data_cache[name]['models']['tabdiff'] = {'data': None, 'train_time': model_train_time}
+                else:
+                    print(f"TabDiff: Model training failed for {name}.")
+                    synthetic_data_cache[name]['models']['tabdiff'] = {'data': None, 'train_time': model_train_time}
+
+            except Exception as e:
+                print(f"ERROR: An exception occurred while processing TabDiff for dataset {name}: {e}")
+                import traceback
+                print(traceback.format_exc())
+                # Ensure a cache entry is made even if an error occurs mid-process,
+                # so subsequent result processing doesn't fail.
+                if name not in synthetic_data_cache:
+                    synthetic_data_cache[name] = {'models': {}}  # Initialize if dataset entry missing
+                elif 'models' not in synthetic_data_cache[name]:
+                    synthetic_data_cache[name]['models'] = {}  # Initialize 'models' dict if missing
+
+                synthetic_data_cache[name]['models']['tabdiff'] = {
+                    'data': None,
+                    # Record time if training started, else 0. model_train_time is defined in the try block.
+                    'train_time': model_train_time if 'start_model_time' in locals() and model_train_time > 0 else 0.0
+                }
+        # if 'tabdiff' in models and TABDIFF_AVAILABLE:
+        #     print("\n-- Generating synthetic data for TabDiff --")
+        #     # try:
+        #     # Get data and preprocess based on discretization flag for TabDiff
+        #     X_train_tabdiff, X_test_tabdiff, y_train_tabdiff, y_test_tabdiff = (
+        #         preprocess_data(X, y, name=name, discretize=discretize, model_name='tabdiff')
+        #     )
+        #     print("Shape of X_train_tabdiff: ", X_train_tabdiff.shape)
+        #     print("Shape of X_test_tabdiff: ", X_test_tabdiff.shape)
+        #
+        #     # from _utils import save_to_csv
+        #     # # Save train data
+        #     # save_to_csv(X_train_tabdiff, y_train_tabdiff, f"data/{name}", "train.csv")
+        #     #
+        #     # # Save test data
+        #     # save_to_csv(X_test_tabdiff, y_test_tabdiff, f"data/{name}", "test.csv")
+        #     #
+        #     # # from TabDiff.tabdiff_data_loader import create_tabdiff_dataloader
+        #     # # batch_size = 256
+        #     # # train_loader = create_tabdiff_dataloader(X_train_tabdiff, y_train_tabdiff,
+        #     # #                                          batch_size=batch_size)
+        #
+        #     import json
+        #     info_path = f'data/{name}/info.json'
+        #     with open(info_path, 'r') as f:
+        #         info = json.load(f)
+        #
+        #     data_dir = f'data/{name}'
+        #     print("Info loaded", info, name, data_dir)
+        #     train_data = TabDiffDataset(name, data_dir, info)
+        #     d_numerical, categories = train_data.d_numerical, train_data.categories
+        #     print("categories", categories)
+        #
+        #     batch_size = 256
+        #
+        #     train_loader = DataLoader(
+        #         train_data,
+        #         batch_size=batch_size,
+        #         shuffle=True,
+        #         num_workers=4,
+        #     )
+        #
+        #     # Train TabDiff model with consistent random seed
+        #     tabdiff_model = train_tabdiff(train_data=train_data, train_loader=train_loader, name=name,
+        #                                   epochs=tabdiff_epochs, random_seed=seed)
+        #
+        #     if tabdiff_model:
+        #         # Generate synthetic data
+        #         tabdiff_synthetic = generate_tabdiff_synthetic_data(tabdiff_model, train_data, n_samples=n_samples)
+        #
+        #         if tabdiff_synthetic is not None:
+        #             # Store in cache
+        #             synthetic_data_cache[name]['models']['tabdiff'] = {
+        #                 'data': tabdiff_synthetic,
+        #                 'X_test': X_test_tabdiff,
+        #                 'y_test': y_test_tabdiff
+        #             }
+        #
+        #             # Save synthetic data
+        #             os.makedirs("train_data", exist_ok=True)
+        #             tabdiff_synthetic.to_csv(f"train_data/tabdiff_{name}_synthetic.csv", index=False)
+        #             print(f"TabDiff synthetic data saved to train_data/tabdiff_{name}_synthetic.csv")
+        #     # except Exception as e:
+        #     #     print(f"Error generating TabDiff synthetic data: {e}")
 
     # Configure approach based on CV and nested CV options
     if nested_cv:
@@ -3198,7 +3402,7 @@ def parse_args():
             # 76,  # Nursery
             # 864,  # Room Occupancy
             # 19,  # Car
-            # 863,  # Maternal Healthuy
+            # 863,  # Maternal Health
         ],
         # default=[545, 101, 158, 26, 27, 2, 22, 59, 159, 76, 864, 19, 863],  # Default: Rice and TicTacToe
         # default=[2],
@@ -3313,7 +3517,7 @@ def parse_args():
     parser.add_argument(
         "--great_epochs",
         type=int,
-        default=2,
+        default=5,
         help="Number of epochs for GReaT training"
     )
 
@@ -3327,7 +3531,7 @@ def parse_args():
     parser.add_argument(
         "--tabdiff_epochs",
         type=int,
-        default=50,
+        default=10,
         help="Number of epochs for TabDiff training"
     )
 

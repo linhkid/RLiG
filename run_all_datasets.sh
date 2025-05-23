@@ -105,19 +105,22 @@ echo ""
 
 # --- Modified UCI Dataset Calls ---
 
-run_dataset "Rice (Cammeo and Osmancik)" "--uci_ids 545 --datasets Rice" "rice" "$DISCRETIZE"
-run_dataset "Car Evaluation" "--uci_ids 19 --datasets Car" "car" "$DISCRETIZE"
-run_dataset "Tic-Tac-Toe Endgame" "--uci_ids 101 --datasets TicTacToe" "tictactoe" "$DISCRETIZE"
-run_dataset "Chess (KRvKP)" "--uci_ids 22 --datasets Chess" "chess" "$DISCRETIZE"
-run_dataset "Letter Recognition" "--uci_ids 59 --datasets letter_recog" "letter_recognition" "$DISCRETIZE"
-run_dataset "MAGIC Gamma Telescope" "--uci_ids 159 --datasets Magic" "magic" "$DISCRETIZE"
-run_dataset "Connect-4" "--uci_ids 26 --datasets Connect-4" "connect4" "$DISCRETIZE"
-run_dataset "Credit Approval" "--uci_ids 27 --datasets Credit" "credit" "$DISCRETIZE"
-run_dataset "Maternal Health Risk" "--uci_ids 863 --datasets Maternal_Health" "maternal_health" "$DISCRETIZE"
-run_dataset "Nursery" "--uci_ids 76 --datasets Nursery" "nursery" "$DISCRETIZE"
-run_dataset "Room Occupancy" "--uci_ids 864 --datasets Room_Occupancy" "room_occupancy" "$DISCRETIZE"
-run_dataset "Poker Hand" "--uci_ids 158 --datasets PokerHand" "pokerhand" "$DISCRETIZE"
-run_dataset "Adult" "--uci_ids 2 --datasets Adult" "adult" "$DISCRETIZE"
+#run_dataset "Rice (Cammeo and Osmancik)" "--uci_ids 545 --datasets Rice" "rice" "$DISCRETIZE"
+#run_dataset "Car Evaluation" "--uci_ids 19 --datasets Car" "car" "$DISCRETIZE"
+#run_dataset "Tic-Tac-Toe Endgame" "--uci_ids 101 --datasets TicTacToe" "tictactoe" "$DISCRETIZE"
+#run_dataset "Chess (KRvKP)" "--uci_ids 22 --datasets Chess" "chess" "$DISCRETIZE"
+#run_dataset "Letter Recognition" "--uci_ids 59 --datasets letter_recog" "letter_recognition" "$DISCRETIZE"
+#run_dataset "MAGIC Gamma Telescope" "--uci_ids 159 --datasets Magic" "magic" "$DISCRETIZE"
+#run_dataset "Connect-4" "--uci_ids 26 --datasets Connect-4" "connect4" "$DISCRETIZE"
+#run_dataset "Credit Approval" "--uci_ids 27 --datasets Credit" "credit" "$DISCRETIZE"
+#run_dataset "Maternal Health Risk" "--uci_ids 863 --datasets Maternal_Health" "maternal_health" "$DISCRETIZE"
+#run_dataset "Nursery" "--uci_ids 76 --datasets Nursery" "nursery" "$DISCRETIZE"
+#run_dataset "Room Occupancy" "--uci_ids 864 --datasets Room_Occupancy" "room_occupancy" "$DISCRETIZE"
+#run_dataset "Poker Hand" "--uci_ids 158 --datasets PokerHand" "pokerhand" "$DISCRETIZE" #NOT USE
+run_dataset "Default of Credit Card Clients" "--uci_ids 350 --datasets Default" "default" "$DISCRETIZE"
+#run_dataset "Covertype" "--uci_ids 31 --datasets Covertype" "covtype" "$DISCRETIZE"
+
+#run_dataset "Adult" "--uci_ids 2 --datasets Adult" "adult" "$DISCRETIZE"
 
 ## --- Datasets from original script using the previous argument style ---
 ## (Assuming eval_tstr_discretized.py can handle these names, possibly as predefined local datasets or special UCI cases)
@@ -128,8 +131,8 @@ run_dataset "Adult" "--uci_ids 2 --datasets Adult" "adult" "$DISCRETIZE"
 # --- Local Datasets (Keeping existing command structure from original script) ---
 # Ensure your python script (eval_tstr_discretized.py) correctly uses the --datasets name
 # in conjunction with the --local_datasets path.
-run_dataset "Loan (Local)" "--datasets Loan --local_datasets 'data/loan_approval_dataset.csv'" "loan" "$DISCRETIZE"
-run_dataset "NSL-KDD (Local)" "--datasets NSL-KDD --local_datasets 'data/nsl-kdd/Full Data/KDDTrain+.arff'" "nsl_kdd" "$DISCRETIZE"
+#run_dataset "Loan (Local)" "--datasets Loan --local_datasets 'data/loan_approval_dataset.csv'" "loan" "$DISCRETIZE" #NOT USE
+#run_dataset "NSL-KDD (Local)" "--datasets NSL-KDD --local_datasets 'data/nsl-kdd/Full Data/KDDTrain+.arff'" "nsl_kdd" "$DISCRETIZE"
 # If you intended to use KDDTrain20.arff as in the original script comment:
 # run_dataset "NSL-KDD (Local)" "--datasets NSL-KDD --local_datasets 'data/nsl-kdd/Full Data/KDDTrain20.arff'" "nsl_kdd" "$DISCRETIZE"
 

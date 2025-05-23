@@ -424,16 +424,20 @@ def create_data_info(dataname, dataset_info, discretize):
 
 if __name__ == "__main__":
     create_data_info(dataname="adult", dataset_info=2, discretize=True)
-    create_data_info(dataname="Rice", dataset_info=545, discretize=True)
+    create_data_info(dataname="rice", dataset_info=545, discretize=True)
     create_data_info(dataname="car", dataset_info=19, discretize=True)
     create_data_info(dataname="magic", dataset_info=159, discretize=True)
     create_data_info(dataname="default", dataset_info=350, discretize=True)
+    create_data_info(dataname="credit", dataset_info=27, discretize=True)
     create_data_info(dataname="connect4", dataset_info=26, discretize=True)
     create_data_info(dataname="letter_recog", dataset_info=59, discretize=True)
     create_data_info(dataname="maternal_health", dataset_info=863, discretize=True)
     create_data_info(dataname="nursery", dataset_info=76, discretize=True)
     create_data_info(dataname="room_occupancy", dataset_info=864, discretize=True)
     create_data_info(dataname="chess", dataset_info=22, discretize=True)
-    create_data_info(dataname="Tictactoe", dataset_info=101, discretize=True)
-    create_data_info(dataname="PokerHand", dataset_info=158, discretize=True)
+    create_data_info(dataname="tictactoe", dataset_info=101, discretize=True)
+    # #create_data_info(dataname="PokerHand", dataset_info=158, discretize=True)
+    #create_data_info(dataname="covtype", dataset_info=31, discretize=True) ##have problem
+    #create_data_info(dataname="covtype", dataset_info="data/covtype.arff", discretize=True)
     create_data_info(dataname="nsl-kdd", dataset_info="data/nsl-kdd/Full -d/KDDTrain20.arff", discretize=True)
+    #create_data_info(dataname="wave", dataset_info=494, discretize=True)

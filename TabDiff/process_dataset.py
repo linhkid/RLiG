@@ -659,6 +659,8 @@ if __name__ == "__main__":
         for name in [
             'adult',
             'default',
+            #'loan',
+            'car',
             'magic',
             'connect4',
             'chess',
@@ -667,9 +669,10 @@ if __name__ == "__main__":
             'room_occupancy',
             'car',
             'maternal_health',
-            'Rice',
+            'rice',
             'nsl-kdd',
-            'Tictactoe',
-            'PokerHand'
+            'tictactoe',
+            #'covtype'
+            #'wave'
         ]:
             process_data(name)
