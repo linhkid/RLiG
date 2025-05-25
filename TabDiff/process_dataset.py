@@ -657,21 +657,22 @@ if __name__ == "__main__":
         process_data(args.dataname)
     else:
         for name in [
-            'adult',
-            'default',
+            #'adult',
+            #'default',
             #'loan',
-            'car',
-            'magic',
-            'connect4',
-            'chess',
-            'letter_recog',
-            'nursery',
-            'room_occupancy',
-            'car',
-            'maternal_health',
-            'rice',
-            'nsl-kdd',
-            'tictactoe',
+            # 'car',
+            # 'magic',
+            # 'connect4',
+            # 'chess',
+            # 'letter_recog',
+            # 'nursery',
+            # 'room_occupancy',
+            # 'car',
+            # 'maternal_health',
+            # 'rice',
+            # 'nsl-kdd',
+            # 'tictactoe',
+            'credit'
             #'covtype'
             #'wave'
         ]:

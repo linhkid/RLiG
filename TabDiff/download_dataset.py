@@ -19,8 +19,8 @@ NAME_URL_DICT_UCI = {
     # 'maternal_health': 'https://archive.ics.uci.edu/static/public/863/maternal+health+risk.zip',
     # 'tictactoe': 'https://archive.ics.uci.edu/static/public/101/tic+tac+toe+endgame.zip',
     #'covtype': 'https://archive.ics.uci.edu/static/public/31/covertype.zip', ##cannot be used
-    'wave': 'https://archive.ics.uci.edu/static/public/494/wave+energy+converters.zip'
-    # 'credit': 'https://archive.ics.uci.edu/static/public/27/credit+approval.zip'
+    #'wave': 'https://archive.ics.uci.edu/static/public/494/wave+energy+converters.zip'
+     'credit': 'https://archive.ics.uci.edu/static/public/27/credit+approval.zip'
     #'PokerHand': 'https://archive.ics.uci.edu/static/public/158/poker+hand.zip'
 }
 

@@ -597,7 +597,7 @@ def train_ctabgan(X_train, y_train, categorical_columns=None, epochs=50):
             from sklearn.model_selection import train_test_split
 
             # Calculate appropriate sample size (20% of data or at least 10,000 samples)
-            sample_size = max(10000, int(0.2 * len(X_train)))
+            sample_size = max(20000, int(0.2 * len(X_train)))
 
             # Ensure we have at least 5 samples from each class
             if min_class_count < 5:
@@ -2424,7 +2424,7 @@ def compare_models_tstr(datasets, models=None, n_rounds=3, seed=42, rlig_episode
     # ... (other parameters)
     """
     if models is None:
-        models = ['rlig', 'ganblr', 'ganblr++', 'ctgan', 'ctabgan', 'nb', 'great', 'dist_sampl', 'tabdiff']
+        models = ['rlig', 'ganblr', 'ganblr++', 'ctgan', 'ctabgan', 'nb', 'great', 'dist_sampl']
         # add , 'tabdiff' later
 
     np.random.seed(seed)
@@ -3350,8 +3350,9 @@ def parse_args():
         "--models",
         type=str,
         nargs="+",
-        default=['rlig', 'ganblr', 'ganblr++', 'ctgan', 'ctabgan', 'nb', 'great', 'dist_sampl', 'tabdiff'],
+        default=['rlig', 'ganblr', 'ganblr++', 'ctgan', 'ctabgan', 'nb', 'great', 'dist_sampl'],
         help="List of models to evaluate. Options: rlig, ganblr, ganblr++, ctgan, ctabgan, nb, great, dist_sampl, tab_diff"
+        #tabdiff runs separatedly
     )
 
     """PokerHand: 158
